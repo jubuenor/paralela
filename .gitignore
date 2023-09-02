@@ -1,2 +1,2 @@
-/leibniz
-/openmp
+*
+!*.c

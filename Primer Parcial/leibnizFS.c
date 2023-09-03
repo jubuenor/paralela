@@ -10,8 +10,8 @@ double total_time;
 
 long double sums[NUM_THREADS];
 long double pi = 0;
-int start[NUM_THREADS];
-int finish[NUM_THREADS];
+long int start[NUM_THREADS];
+long int finish[NUM_THREADS];
 
 void main(){
     for(int j=0; j<NUM_THREADS;j++){
@@ -20,11 +20,11 @@ void main(){
     }
     init = clock();
     #pragma omp parallel num_threads(NUM_THREADS)
-    //printf("%lf \n", ((double)(clock() - init))/CLOCKS_PER_SEC);
+    printf(".");
     {
         int ID = omp_get_thread_num();
 
-        for(int i = start[ID]; i<=finish[ID]; i++){
+        for(long int i = start[ID]; i<=finish[ID]; i++){
             sums[ID] += (i&1)? ((long double) -4/(long double) (2*i+1)): ((long double) 4/(long double) (2*i+1));
         }
     }

@@ -1,40 +1,48 @@
 #include <stdio.h>
 #include <omp.h>
-#include <time.h>
 
-#define NUM_THREADS 16
+#define NUM_THREADS 12
 #define IT 2e9
 
-clock_t init,end;
-double total_time;
+long double init,end;
+long double total_time;
 
-long double sums[NUM_THREADS][64];
-long double pi = 0;
-int start[NUM_THREADS];
-int finish[NUM_THREADS];
+double sums[NUM_THREADS];
+double pi = 0;
+long int start[NUM_THREADS];
+long int finish[NUM_THREADS];
+long double time[NUM_THREADS];
 
 void main(){
+
     for(int j=0; j<NUM_THREADS;j++){
         start[j]= (int) (IT/NUM_THREADS)*j;
         finish[j] = (int) (IT/NUM_THREADS)*(j+1)-1;
     }
-    init = clock();
-    #pragma omp parallel num_threads(NUM_THREADS)
-    //printf("%lf \n", ((double)(clock() - init))/CLOCKS_PER_SEC);
+    printf("%d\n",omp_get_max_threads());
+    omp_set_num_threads(NUM_THREADS);
+    init = omp_get_wtime();
+    #pragma omp parallel
     {
         int ID = omp_get_thread_num();
-
-        for(int i = start[ID]; i<=finish[ID]; i++){
-            sums[ID][0] += (i&1)? ((long double) -4/(long double) (2*i+1)): ((long double) 4/(long double) (2*i+1));
+        time[ID] = -omp_get_wtime();
+        for(long int i = start[ID]; i<=finish[ID]; i++){
+            sums[ID] += (i&1)? ((double) -4/(double) (2*i+1)): ((double) 4/(double) (2*i+1));
         }
+        time[ID] += omp_get_wtime();
     }
-    end = clock();
-    total_time = ((double)(end - init))/CLOCKS_PER_SEC;
+    end = omp_get_wtime();
+    total_time = end - init;
 
     for(int j=0; j<NUM_THREADS;j++){
-        pi+=sums[j][0];
-        //printf("%d  %d\n", start[j], finish[j]);
+        pi+=sums[j];
     }
-    printf("%.15Lf\n", pi);
-    printf("%d , %lf \n", NUM_THREADS,total_time);
+
+    for(int j=0; j<NUM_THREADS;j++){
+        printf("Hilo %d: %Lf \n", j, time[j]);
+    }
+
+    printf("%.15f\n", pi);
+    printf("Número de Hilos: %d \nTiempo total: %Lf \n", NUM_THREADS,total_time);
+
 }

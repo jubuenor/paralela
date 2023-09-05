@@ -2,7 +2,7 @@
 #include <omp.h>
 #include <time.h>
 
-#define NUM_THREADS 1
+#define NUM_THREADS 5
 #define IT 2e9
 
 long double init,end;

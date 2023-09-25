@@ -2,7 +2,7 @@ import struct
 import random
 
 def generate_random_matrix(n):
-    return [[random.randrange(2, 50) for _ in range(n)] for _ in range(n)]
+    return [[random.randrange(1,10) for _ in range(n)] for _ in range(n)]
 
 def write_matrix_to_binary_file(matrix, filename):
     with open(filename, 'wb') as f:

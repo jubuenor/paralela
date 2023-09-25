@@ -3,84 +3,110 @@
 #include <pthread.h>
 #include <time.h>
 
- 
-// maximum number of threads
-#define MAX_THREAD // 1,2,4,8,16
- 
+#define MAX_THREAD 1 // Number of threads
+#define SIZE 128 // Matrix size
 
+int step_i = 0;
+pthread_mutex_t lock;
 
-// Cada fila y columna será unicamente procesada por un hilo, para al finalizar realizar la sumatoria respectiva
+// Function to print the matrix
+void printMatrix(double **matrix, int size) {
+    for (int i = 0; i < size; ++i) {
+        for (int j = 0; j < size; ++j) {
+            printf("%.2f ", matrix[i][j]);
+        }
+        printf("\n");
+    }
+}
+
+void* multi(void* arg) {
+    pthread_mutex_lock(&lock);
+    int i = step_i++;
+    pthread_mutex_unlock(&lock);
+
+    double **matrixA = ((double ***)arg)[0];
+    double **matrixB = ((double ***)arg)[1];
+    double **matrixC = ((double ***)arg)[2];
+    
+    for(int i = 0 ; i < SIZE; i++){
+        for (int j = 0; j < SIZE; j++) {
+            for (int k = 0; k < SIZE; k++) {
+                matrixC[i][j] += matrixA[i][k] * matrixB[k][j];
+            }
+            
+        }
+        
+    }
+    
+    return NULL;
+}
 
 int main() {
-    // Variables
+    double **matrixA, **matrixB, **matrixC;
+    pthread_t threads[MAX_THREAD];
+    pthread_mutex_init(&lock, NULL);
+    FILE *file;
 
-    // Matrix
-    int n ;
-    int n_threads;
-    double **matrixA ;
-    double **matrixB ;
-    
-    // Thread
-    pthread_t tid;
-    
-    // File with the values of the matrix
-    FILE *file; 
-    
-    // Seconds for the Algorithm execution
-    time_t seconds ;
-
-    // maximum size of matrix
-    n = 128 ;// 128,256,512,1024
-    n_threads = 1;
-    ////  Creación y lectura de las matrices ////
-    
-    // Asignación de memoria
-    matrixA = (double **)malloc(n * sizeof(double *));
-    matrixB = (double **)malloc(n * sizeof(double *));
-
-    for (int i = 0; i < n; ++i) {
-        matrixA[i] = (double *)malloc(n * sizeof(double));
-        matrixB[i] = (double *)malloc(n * sizeof(double));
+    // Memory allocation
+    matrixA = (double **)malloc(SIZE * sizeof(double *));
+    matrixB = (double **)malloc(SIZE * sizeof(double *));
+    matrixC = (double **)malloc(SIZE * sizeof(double *));
+    for (int i = 0; i < SIZE; ++i) {
+        matrixA[i] = (double *)malloc(SIZE * sizeof(double));
+        matrixB[i] = (double *)malloc(SIZE * sizeof(double));
+        matrixC[i] = (double *)malloc(SIZE * sizeof(double));
     }
 
+    // Initialize matrices (for demonstration)
     // Abrir archivo en modo binario
-    file = fopen("matrix.txt", "r");
+    file = fopen("/home/user/Desktop/MateoCodes/nacional/Paralela/paralela/Segundo_Parcial/matrix.txt", "r");
+
     if (file == NULL) {
         printf("No se pudo abrir el archivo.\n");
         exit(1);
     }
+    int value ;
 
-    // Lectura en bloque
-    for (int i = 0; i < n; ++i) {
-        fscanf(file,"%d",matrixA[i][i]);
+    // Reading the matrix
+    for (int i = 0; i < SIZE; ++i) {
+        
+        for (int j = 0; j < SIZE; ++j) {
+            fscanf(file, "%d", &value);
+            
+            matrixA[i][j] = value;
+            matrixB[i][j] = value;
+        }
+        
+    }
+    
+    double **arg[3] = {matrixA, matrixB, matrixC};
+
+    // Thread creation
+    for (int i = 0; i < MAX_THREAD; i++) {
+        pthread_create(&threads[i], NULL, multi, arg);
     }
 
-    fclose(file);
+    // Join threads
+    for (int i = 0; i < MAX_THREAD; i++) {
+        pthread_join(threads[i], NULL);
+    }
 
-    // Algoritmo multiplicacion matriz
-
-    // Creación de hilos
-    // Let us create three threads
-    /*
+    pthread_mutex_destroy(&lock);
     
-    for (int i  = 0; i < ; i++)
-        pthread_create(&tid, NULL, multMatrix, (void *)&tid);
-*/
+    // Print the resultant matrix
+    printf("Resultant Matrix C:\n");
+    printMatrix(matrixC, SIZE);
 
-    printf("%.2f ", matrixA[0][12]); 
-
-    // Liberar memoria
-    
-    for (int i = 0; i < n; ++i) {
+    // Free memory
+    for (int i = 0; i < SIZE; ++i) {
         free(matrixA[i]);
         free(matrixB[i]);
+        free(matrixC[i]);
     }
-
     free(matrixA);
     free(matrixB);
+    free(matrixC);
 
     return 0;
-
-
-
+    
 }

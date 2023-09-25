@@ -13,7 +13,7 @@ def write_matrix_to_binary_file(matrix, filename):
                 f.write(packed_data)
 
 with open("matrix.txt", "w") as f:
-    n = 128  # Tamaño de la matriz
+    n = 2  # Tamaño de la matriz
     matrix = generate_random_matrix(n)
     for row in matrix:
         f.write(" ".join(map(str, row)) + "\n")

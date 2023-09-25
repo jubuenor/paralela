@@ -1,13 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
-#include <time.h>
 
-#define MAX_THREAD 1 // Number of threads
-#define SIZE 1024 // Matrix size
-
-int step_i = 0;
-pthread_mutex_t lock;
+#define SIZE 2 // Matrix size
 
 // Function to print the matrix
 void printMatrix(double **matrix, int size) {
@@ -19,32 +13,8 @@ void printMatrix(double **matrix, int size) {
     }
 }
 
-void* multi(void* arg) {
-    pthread_mutex_lock(&lock);
-    int i = step_i++;
-    pthread_mutex_unlock(&lock);
-
-    double **matrixA = ((double ***)arg)[0];
-    double **matrixB = ((double ***)arg)[1];
-    double **matrixC = ((double ***)arg)[2];
-    
-    for(int i = 0 ; i < SIZE; i++){
-        for (int j = 0; j < SIZE; j++) {
-            for (int k = 0; k < SIZE; k++) {
-                matrixC[i][j] += matrixA[i][k] * matrixB[k][j];
-            }
-            
-        }
-        
-    }
-    
-    return NULL;
-}
-
 int main() {
     double **matrixA, **matrixB, **matrixC;
-    pthread_t threads[MAX_THREAD];
-    pthread_mutex_init(&lock, NULL);
     FILE *file;
 
     // Memory allocation
@@ -57,42 +27,33 @@ int main() {
         matrixC[i] = (double *)malloc(SIZE * sizeof(double));
     }
 
-    // Initialize matrices (for demonstration)
-    // Abrir archivo en modo binario
+    // Initialize matrices
     file = fopen("/home/user/Desktop/MateoCodes/nacional/Paralela/paralela/Segundo_Parcial/matrix.txt", "r");
-
     if (file == NULL) {
         printf("No se pudo abrir el archivo.\n");
         exit(1);
     }
-    int value ;
+    int value;
 
     // Reading the matrix
     for (int i = 0; i < SIZE; ++i) {
-        
         for (int j = 0; j < SIZE; ++j) {
             fscanf(file, "%d", &value);
-            
             matrixA[i][j] = value;
             matrixB[i][j] = value;
         }
-        
-    }
-    
-    double **arg[3] = {matrixA, matrixB, matrixC};
-
-    // Thread creation
-    for (int i = 0; i < MAX_THREAD; i++) {
-        pthread_create(&threads[i], NULL, multi, arg);
     }
 
-    // Join threads
-    for (int i = 0; i < MAX_THREAD; i++) {
-        pthread_join(threads[i], NULL);
+    // Sequential matrix multiplication
+    for (int i = 0; i < SIZE; i++) {
+        for (int j = 0; j < SIZE; j++) {
+            matrixC[i][j] = 0;
+            for (int k = 0; k < SIZE; k++) {
+                matrixC[i][j] += matrixA[i][k] * matrixB[k][j];
+            }
+        }
     }
 
-    pthread_mutex_destroy(&lock);
-    
     // Print the resultant matrix
     printf("Resultant Matrix C:\n");
     printMatrix(matrixC, SIZE);
@@ -108,5 +69,4 @@ int main() {
     free(matrixC);
 
     return 0;
-    
 }

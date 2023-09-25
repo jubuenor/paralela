@@ -16,8 +16,12 @@ int main() {
 
     // Matrix
     int n ;
+    int n_threads;
     double **matrixA ;
     double **matrixB ;
+    
+    // Thread
+    pthread_t tid;
     
     // File with the values of the matrix
     FILE *file; 
@@ -26,7 +30,9 @@ int main() {
     time_t seconds ;
 
     // maximum size of matrix
-    n = 4 ;// 128,256,512,1024
+    n = 128 ;// 128,256,512,1024
+    n_threads = 1;
+    ////  Creación y lectura de las matrices ////
     
     // Asignación de memoria
     matrixA = (double **)malloc(n * sizeof(double *));
@@ -38,7 +44,7 @@ int main() {
     }
 
     // Abrir archivo en modo binario
-    file = fopen("matrix.bin", "rb");
+    file = fopen("matrix.txt", "r");
     if (file == NULL) {
         printf("No se pudo abrir el archivo.\n");
         exit(1);
@@ -46,18 +52,22 @@ int main() {
 
     // Lectura en bloque
     for (int i = 0; i < n; ++i) {
-        fread(matrixA[i], sizeof(double), n, file);
-        fread(matrixB[i], sizeof(double), n, file);
+        fscanf(file,"%d",matrixA[i][i]);
     }
 
     fclose(file);
 
-    // Creación y lectura de las matrices
-
     // Algoritmo multiplicacion matriz
 
+    // Creación de hilos
+    // Let us create three threads
+    /*
+    
+    for (int i  = 0; i < ; i++)
+        pthread_create(&tid, NULL, multMatrix, (void *)&tid);
+*/
 
-    printf("%.2f ", matrixA[0][0]); 
+    printf("%.2f ", matrixA[0][12]); 
 
     // Liberar memoria
     

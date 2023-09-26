@@ -1,8 +1,9 @@
 import struct
 import random
+import sys
 
 def generate_random_matrix(n):
-    return [[random.randrange(1,10) for _ in range(n)] for _ in range(n)]
+    return [[random.randrange(-sys.maxsize-1,sys.maxsize) for _ in range(n)] for _ in range(n)]
 
 def write_matrix_to_binary_file(matrix, filename):
     with open(filename, 'wb') as f:
@@ -13,7 +14,7 @@ def write_matrix_to_binary_file(matrix, filename):
                 f.write(packed_data)
 
 with open("matrix.txt", "w") as f:
-    n = 2  # Tamaño de la matriz
+    n = 512  # Tamaño de la matriz
     matrix = generate_random_matrix(n)
     for row in matrix:
         f.write(" ".join(map(str, row)) + "\n")

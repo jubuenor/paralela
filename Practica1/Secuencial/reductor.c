@@ -9,10 +9,17 @@ using namespace std;
 long double init, _end;
 long double total_time;
 
-int main()
+int main(int argc, char *argv[])
 {
+    string input = argv[1];
+    string output = argv[2];
 
-    VideoCapture cap("../japan.mp4");
+    for (int i = 0; i < argc; i++)
+    {
+        cout << argv[i] << endl;
+    }
+
+    VideoCapture cap(input);
     if (!cap.isOpened())
     {
         cout << "Error opening video stream or file" << endl;
@@ -22,9 +29,8 @@ int main()
     int fps = cap.get(CAP_PROP_FPS);
     int fourcc = cap.get(CAP_PROP_FOURCC);
     int frameCount = cap.get(CAP_PROP_FRAME_COUNT);
-    cout << frameCount << endl;
 
-    VideoWriter video("outcpp.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), fps, Size(640, 360));
+    VideoWriter video(output, fourcc, fps, Size(640, 360));
 
     init = omp_get_wtime();
 
@@ -33,7 +39,6 @@ int main()
         Mat frames;
         cap >> frames;
 
-        // cout << frames.size() << endl;
         Mat newFrame = Mat::zeros(frames.size() / 3, frames.type());
 
         for (int i = 0; i < frames.rows; i += 3)
@@ -61,12 +66,7 @@ int main()
                 newFrame.at<Vec3b>(i / 3, j / 3) = color;
             }
         }
-        // cout << newFrame.size() << endl;
         video.write(newFrame);
-        // imshow("Frame", newFrame);
-        // char c = (char)waitKey(1);
-        // if (c == 27)
-        // break;
     }
     _end = omp_get_wtime();
     total_time = _end - init;

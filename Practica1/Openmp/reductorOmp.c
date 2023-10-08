@@ -4,24 +4,24 @@
 #include <stdlib.h>
 #include <vector>
 
-#define N_THREADS 16
-
 using namespace cv;
 using namespace std;
 
 long double init, _end;
 long double total_time;
 
-struct Pair
+int main(int argc, char *argv[])
 {
-    Mat frame;
-    int index;
-};
+    string input = argv[1];
+    string output = argv[2];
+    int n_threads = atoi(argv[3]);
 
-int main()
-{
+    for (int i = 0; i < argc; i++)
+    {
+        cout << argv[i] << endl;
+    }
 
-    VideoCapture cap("../japan.mp4");
+    VideoCapture cap(input);
     if (!cap.isOpened())
     {
         cout << "Error opening video stream or file" << endl;
@@ -31,9 +31,8 @@ int main()
     int fps = cap.get(CAP_PROP_FPS);
     int fourcc = cap.get(CAP_PROP_FOURCC);
     int frameCount = cap.get(CAP_PROP_FRAME_COUNT);
-    cout << frameCount << endl;
 
-    VideoWriter video("outcpp.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), fps, Size(640, 360));
+    VideoWriter video(output, fourcc, fps, Size(640, 360));
 
     Mat finalVideoFrames[frameCount];
 
@@ -45,7 +44,7 @@ int main()
     {
         vector<pair<Mat, int>> videoFrames;
 
-        for (int i = 0; i < N_THREADS; i++)
+        for (int i = 0; i < n_threads; i++)
         {
             Mat frame;
             cap >> frame;
@@ -62,12 +61,11 @@ int main()
         {
             break;
         }
-#pragma omp parallel num_threads(N_THREADS)
+#pragma omp parallel num_threads(n_threads)
 #pragma omp for
         for (int n = 0; n < videoFrames.size(); n++)
         {
             Mat newFrame = Mat::zeros(videoFrames[n].first.size() / 3, videoFrames[n].first.type());
-            // cout << videoFrames[n].size() << endl;
             for (int i = 0; i < videoFrames[n].first.rows; i += 3)
             {
                 for (int j = 0; j < videoFrames[n].first.cols; j += 3)
@@ -93,23 +91,17 @@ int main()
                     newFrame.at<Vec3b>(i / 3, j / 3) = color;
                 }
             }
-            //  cout << newFrame.size() << endl;
             finalVideoFrames[videoFrames[n].second] = newFrame;
-            // cout << finalVideoFrames[n].size() << endl;
         }
     }
 
     _end = omp_get_wtime();
     total_time = _end - init;
-    printf("Tiempo total: %Lf\n s", total_time);
-
-    cout << n_frame << endl;
+    printf("Tiempo total: %Lfs \n", total_time);
 
     for (int i = 0; i < frameCount; i++)
     {
-        // cout << finalVideoFrames[i].size() << endl;
         video.write(finalVideoFrames[i]);
-        //     imshow("Frame", finalVideoFrames[i]);
         char c = (char)waitKey(1);
         if (c == 27)
             break;

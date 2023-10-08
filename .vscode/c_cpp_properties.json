@@ -1,0 +1,15 @@
+{
+  "configurations": [
+    {
+      "name": "Linux",
+      "includePath": ["${workspaceFolder}/**", "/usr/include/opencv4"],
+      "defines": [],
+      "compilerPath": "/usr/bin/clang",
+      "cStandard": "gnu17",
+      "cppStandard": "gnu++14",
+      "intelliSenseMode": "${default}",
+      "compilerArgs": ["-lgomp", "-fopenmp"]
+    }
+  ],
+  "version": 4
+}

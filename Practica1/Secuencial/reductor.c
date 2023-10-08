@@ -24,7 +24,7 @@ int main()
     int frameCount = cap.get(CAP_PROP_FRAME_COUNT);
     cout << frameCount << endl;
 
-    VideoWriter video("outcpp.mp4", fourcc, fps, Size(640, 360));
+    VideoWriter video("outcpp.avi", VideoWriter::fourcc('M', 'J', 'P', 'G'), fps, Size(640, 360));
 
     init = omp_get_wtime();
 
@@ -33,7 +33,8 @@ int main()
         Mat frames;
         cap >> frames;
 
-        Mat newFrame = Mat::zeros(frames.size(), frames.type());
+        // cout << frames.size() << endl;
+        Mat newFrame = Mat::zeros(frames.size() / 3, frames.type());
 
         for (int i = 0; i < frames.rows; i += 3)
         {
@@ -60,8 +61,12 @@ int main()
                 newFrame.at<Vec3b>(i / 3, j / 3) = color;
             }
         }
-
+        // cout << newFrame.size() << endl;
         video.write(newFrame);
+        // imshow("Frame", newFrame);
+        // char c = (char)waitKey(1);
+        // if (c == 27)
+        // break;
     }
     _end = omp_get_wtime();
     total_time = _end - init;

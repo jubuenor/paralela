@@ -2,3 +2,5 @@
 !*.c
 
 **/output.mp4
+*/test
+**/opencv

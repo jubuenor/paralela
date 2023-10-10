@@ -81,8 +81,32 @@ int main(int argc, char *argv[])
         // Loop through the vector to process each frame
         for (int n = 0; n < videoFrames.size(); n++)
         {
-            // ... (Same frame processing code as before)
-            // Store the processed frame in the finalVideoFrames array at the correct position
+               Mat newFrame = Mat::zeros(videoFrames[n].first.size() / 3, videoFrames[n].first.type());
+            for (int i = 0; i < videoFrames[n].first.rows; i += 3)
+            {
+                for (int j = 0; j < videoFrames[n].first.cols; j += 3)
+                {
+
+                    double blue = 0;
+                    double green = 0;
+                    double red = 0;
+                    for (int ik = 0; ik < 3; ik++)
+                    {
+                        for (int jk = 0; jk < 3; jk++)
+                        {
+                            blue += videoFrames[n].first.at<Vec3b>(i + ik, j + jk)[0];
+                            green += videoFrames[n].first.at<Vec3b>(i + ik, j + jk)[1];
+                            red += videoFrames[n].first.at<Vec3b>(i + ik, j + jk)[2];
+                        }
+                    }
+
+                    red /= 9;
+                    green /= 9;
+                    blue /= 9;
+                    Vec3b color = Vec3b(blue, green, red);
+                    newFrame.at<Vec3b>(i / 3, j / 3) = color;
+                }
+            }
             finalVideoFrames[videoFrames[n].second] = newFrame;
         }
     }

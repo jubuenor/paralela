@@ -6,7 +6,7 @@
 
 using namespace cv;
 
-_global_ void add(int *a, int *b, int *c)
+__global__ void add(int *a, int *b, int *c)
 {
     *c = *a + *b;
 }
@@ -45,7 +45,7 @@ int main()
     // Check if the video file is successfully opened
     if (!cap.isOpened())
     {
-        cout << "Error opening video stream or file" << endl;
+        printf("Error opening video");
         return 0;
     }
 
@@ -56,7 +56,7 @@ int main()
     printf("fps: %d, fourcc: %d, frameCount: %d\n", fps, fourcc, frameCount);
 
     // Initialize output video file using OpenCV's VideoWriter
-    VideoWriter video(output, fourcc, fps, Size(640, 360));
+    VideoWriter video("output.mp4", fourcc, fps, Size(640, 360));
 
     // Declare an array to hold the final processed frames
     Mat finalVideoFrames[frameCount];

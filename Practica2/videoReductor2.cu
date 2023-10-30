@@ -12,7 +12,7 @@ using namespace std;  // Use the standard namespace
 long double init, _end;
 long double total_time;
 
-__global__ void reduce(int *videoFrames, int *finalVideoFrames, int n_frames,int n_blocks, int n_threads, int width, int height){
+__global__ void reduce(unsigned int *videoFrames, unsigned int *finalVideoFrames, int n_frames,int n_blocks, int n_threads, int width, int height){
     for (int i = 0; i < height*3; i += 3*n_threads)
     {
         for (int j = 0; j < width*3; j += 3*n_blocks)
@@ -110,8 +110,8 @@ int main(int argc, char *argv[])
 
         for(int n =0; n<n_frame; n++){
             //Memory allocation of the input and output arrays
-            int *finalVideoFrames = malloc(heitght*width*3*sizeof(int));
-            int *videoFramesArray = malloc(3*heitght*3*width*3*sizeof(int));
+            unsigned int *finalVideoFrames = malloc(heitght*width*3*sizeof(unsigned int));
+            unsigned int *videoFramesArray = malloc(3*heitght*3*width*3*sizeof(unsigned int));
             // Verify that allocations succeeded
             if (finalVideoFrames == NULL) {
                 fprintf(stderr, "Failed to allocate host vector finalVideoFrames!\n");
@@ -133,8 +133,8 @@ int main(int argc, char *argv[])
             }
 
             //Memory allocation  of the device array
-            int *d_finalVideoFrames = Null;
-            err = cudaMalloc((void **)&d_finalVideoFrames, heitght*width*3*sizeof(int));
+            unsigned int *d_finalVideoFrames = Null;
+            err = cudaMalloc((void **)&d_finalVideoFrames, heitght*width*3*sizeof(unsigned int));
             // Verify that dev allocations succeeded
             if (err != cudaSuccess) {
                 fprintf(stderr, "Failed to allocate device vector videoFrames (error code %s)!\n", cudaGetErrorString(err));
@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
 
             //Memory allocation  of the device array
             int *d_VideoFrames = Null;
-            err = cudaMalloc((void **)&d_VideoFrames, 3*heitght*3*width*3*sizeof(int));
+            err = cudaMalloc((void **)&d_VideoFrames, 3*heitght*3*width*3*sizeof(unsigned int));
             // Verify that dev allocations succeeded
             if (err != cudaSuccess) {
                 fprintf(stderr, "Failed to allocate device vector videoFrames (error code %s)!\n", cudaGetErrorString(err));
@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
             }
 
             // Copy the content of the frame from Host to Device
-            err = cudaMemcpy(d_VideoFrames, VideoFramesArray, n_blocks*3*heitght*3*width*3*sizeof(int), cudaMemcpyHostToDevice);
+            err = cudaMemcpy(d_VideoFrames, VideoFramesArray, 3*heitght*3*width*3*sizeof(unsigned int), cudaMemcpyHostToDevice);
             // Verify that copy succeeded
             if (err != cudaSuccess) {
                 fprintf(stderr, "Failed to copy vector videoFramesArray from host to device (error code %s)!\n", cudaGetErrorString(err));

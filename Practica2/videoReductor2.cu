@@ -12,36 +12,33 @@ using namespace std;  // Use the standard namespace
 long double init, _end;
 long double total_time;
 
-__global__ void reduce(pair<Mat,int> *videoFrames, Mat *finalVideoFrames, int n_frames, int n_threads){
-    if(blockIdx.x<n_frames){
-        Mat newFrame = Mat::zeros(videoFrames[blockIdx.x].first.size() / 3, videoFrames[blockIdx.x].first.type());
-        for (int i = 0; i < videoFrames[blockIdx.x].first.rows; i += 3*n_threads)
+__global__ void reduce(int *videoFrames, int *finalVideoFrames, int n_frames,int n_blocks, int n_threads, int width, int height){
+    for (int i = 0; i < height*3; i += 3*n_threads)
+    {
+        for (int j = 0; j < width*3; j += 3*n_blocks)
         {
-            for (int j = 0; j < videoFrames[blockIdx.x].first.cols; j += 3)
+
+            double blue = 0;
+            double green = 0;
+            double red = 0;
+
+            for (int ik = 0; ik < 3; ik++)
             {
-
-                double blue = 0;
-                double green = 0;
-                double red = 0;
-
-                for (int ik = 0; ik < 3; ik++)
+                for (int jk = 0; jk < 3; jk++)
                 {
-                    for (int jk = 0; jk < 3; jk++)
-                    {
-                        blue += videoFrames[blockIdx.x].first.at<Vec3b>(i+threadIdx.x + ik, j + jk)[0];
-                        green += videoFrames[blockIdx.x].first.at<Vec3b>(i+threadIdx.x + ik, j + jk)[1];
-                        red += videoFrames[blockIdx.x].first.at<Vec3b>(i+threadIdx.x + ik, j + jk)[2];
-                    }
+                    blue += videoFrames[(i+threadIdx.x + ik)*9*width+(j+blockIdx.x + jk)*3+0];
+                    green += videoFrames[(i+threadIdx.x + ik)*9*width+(j+blockIdx.x + jk)*3+1];
+                    red += videoFrames[(i+threadIdx.x + ik)*9*width+(j+blockIdx.x + jk)*3+2];
                 }
-
-                red /= 9;
-                green /= 9;
-                blue /= 9;
-                Vec3b color = Vec3b(blue, green, red);
-                newFrame.at<Vec3b>((i+threadIdx.x) / 3, j / 3) = color;
             }
+
+            red /= 9;
+            green /= 9;
+            blue /= 9;
+            finalVideoFrames[((int) ((i+threadIdx)/3))*height*3+ ((int) ((j+threadIdx)/3))*3+0] = blue;
+            finalVideoFrames[((int) ((i+threadIdx)/3))*height*3+ ((int) ((j+threadIdx)/3))*3+1] = green;
+            finalVideoFrames[((int) ((i+threadIdx)/3))*height*3+ ((int) ((j+threadIdx)/3))*3+2] = red;
         }
-        finalVideoFrames[videoFrames[blockIdx.x].second] = newFrame;
     }
 }
 
@@ -80,92 +77,105 @@ int main(int argc, char *argv[])
     // Start performance timing
     init = omp_get_wtime();
 
-    size_t size = n_blocks*sizeof(pair<Mat, int>);
-    size_t mat_size = n_blocks*sizeof(Mat);
-    cudaError_t err = cudaSuccess;
+    cudaError_t err = cudaSuccess
+    int height = 360;
+    int width = 640;
+
 
     // Main loop to read and process video frames
     while (true)
     {
         // Declare a vector to hold frames and their corresponding frame numbers
+        vector<pair<Mat, int>> videoFrames;
         int n_frame = 0;
-
-        pair<Mat, int> *videoFrames = (pair<Mat, int> *)malloc(size);
-        Mat *finalVideoFrames = (Mat *)malloc(mat_size);
-        // Verify that allocations succeeded
-        if (videoFrames == NULL || finalVideoFrames == NULL) {
-            fprintf(stderr, "Failed to allocate host vectors!\n");
-            exit(EXIT_FAILURE);
-        }
-
-        pair<Mat, int>  *d_videoFrames = NULL;
-        err = cudaMalloc((void **)&d_videoFrames, size);
-
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Failed to allocate device vector videoFrames (error code %s)!\n", cudaGetErrorString(err));
-            exit(EXIT_FAILURE);
-        }
-
-        Mat  *d_finalVideoFrames = NULL;
-        err = cudaMalloc((void **)&d_finalVideoFrames, mat_size);
-
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Failed to allocate device vector finalVideoFrames (error code %s)!\n", cudaGetErrorString(err));
-            exit(EXIT_FAILURE);
-        }
-
         // Read 'n_threads' number of frames into the vector
-        for (int i = 0; i < n_blocks; i++)
+        for (int i = 0; i < n_threads; i++)
         {
             Mat frame;
             cap >> frame;
+
             if (frame.empty())
             {
                 break;
             }
-            videoFrames[i] = {frame, n_frame};
+            videoFrames.push_back({frame, n_frame});
             n_frame++;
         }
 
         // Exit the loop if no frames are read
-        if (n_frame==0)
+        if (videoFrames.empty())
         {
             break;
         }
 
-        //Copy input data from the host memory to the CUDA device
-        err = cudaMemcpy(d_videoFrames, videoFrames, size, cudaMemcpyHostToDevice);
+        for(int n =0; n<n_frame; n++){
+            //Memory allocation of the input and output arrays
+            int *finalVideoFrames = malloc(heitght*width*3*sizeof(int));
+            int *videoFramesArray = malloc(3*heitght*3*width*3*sizeof(int));
+            // Verify that allocations succeeded
+            if (finalVideoFrames == NULL) {
+                fprintf(stderr, "Failed to allocate host vector finalVideoFrames!\n");
+                exit(EXIT_FAILURE);
+            }
 
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Failed to copy vector videoFrames from host to device (error code %s)!\n", cudaGetErrorString(err));
-            exit(EXIT_FAILURE);
-        }
+            if (VideoFramesArray == NULL) {
+                fprintf(stderr, "Failed to allocate host vector videoFramesArray!\n");
+                exit(EXIT_FAILURE);
+            }
 
-        err = cudaMemcpy(d_finalVideoFrames, finalVideoFrames, mat_size, cudaMemcpyHostToDevice);
+            //Copy the frame content to 1D Array
+            for(int i = 0; i<height*3; i++){
+                for(int j = 0; j<width*3; j++){
+                    videoFramesArray[i*width*9+j*3+0] = videoFrames[n].first.at<Vec3b>(i, j)[0];
+                    videoFramesArray[i*width*9+j*3+1] = videoFrames[n].first.at<Vec3b>(i, j)[1];
+                    videoFramesArray[i*width*9+j*3+2] = videoFrames[n].first.at<Vec3b>(i, j)[2];
+                }
+            }
 
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Failed to copy vector finalVideoFrames from host to device (error code %s)!\n", cudaGetErrorString(err));
-            exit(EXIT_FAILURE);
-        }
+            //Memory allocation  of the device array
+            int *d_finalVideoFrames = Null;
+            err = cudaMalloc((void **)&d_finalVideoFrames, heitght*width*3*sizeof(int));
+            // Verify that dev allocations succeeded
+            if (err != cudaSuccess) {
+                fprintf(stderr, "Failed to allocate device vector videoFrames (error code %s)!\n", cudaGetErrorString(err));
+                exit(EXIT_FAILURE);
+            }
 
-        // Enable OpenMP parallelization with the specified number of threads
-        reduce<<<n_blocks,n_threads>>>(d_videoFrames, d_finalVideoFrames, n_frame, n_threads);
-        // Loop through the vector to process each frame
+            //Memory allocation  of the device array
+            int *d_VideoFrames = Null;
+            err = cudaMalloc((void **)&d_VideoFrames, 3*heitght*3*width*3*sizeof(int));
+            // Verify that dev allocations succeeded
+            if (err != cudaSuccess) {
+                fprintf(stderr, "Failed to allocate device vector videoFrames (error code %s)!\n", cudaGetErrorString(err));
+                exit(EXIT_FAILURE);
+            }
 
-        //Copy output data from the CUDA device to the host memory
-        err = cudaMemcpy(finalVideoFrames, d_finalVideoFrames, mat_size, cudaMemcpyDeviceToHost);
+            // Copy the content of the frame from Host to Device
+            err = cudaMemcpy(d_VideoFrames, VideoFramesArray, n_blocks*3*heitght*3*width*3*sizeof(int), cudaMemcpyHostToDevice);
+            // Verify that copy succeeded
+            if (err != cudaSuccess) {
+                fprintf(stderr, "Failed to copy vector videoFramesArray from host to device (error code %s)!\n", cudaGetErrorString(err));
+                exit(EXIT_FAILURE);
+            }
 
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Failed to copy vector C from device to host (error code %s)!\n", cudaGetErrorString(err));
-            exit(EXIT_FAILURE);
-        }
+            // run cuda function
+            reduce<<<n_blocks,n_threads>>>(d_videoFrames, d_finalVideoFrames, n_frame, n_blocks, n_threads, width, height);
 
-        for (int i = 0; i < n_frame; i++)
-        {
-            video.write(finalVideoFrames[i]);
+            //Copy output data from the CUDA device to the host memory
+            err = cudaMemcpy(finalVideoFrames, d_finalVideoFrames, heitght*width*3*sizeof(int), cudaMemcpyDeviceToHost);
+            // Verify that copy succeeded
+            if (err != cudaSuccess) {
+                fprintf(stderr, "Failed to copy vector finalVideoFrames from device to host (error code %s)!\n", cudaGetErrorString(err));
+                exit(EXIT_FAILURE);
+            }
+
+            //write the video
+            Mat newFrame = Mat(width, height, CV_8UC3, (unsigned *)finalVideoFrames);
+            video.write(newFrame);
             char c = (char)waitKey(1);
             if (c == 27)
                 break;
+
         }
     }
 

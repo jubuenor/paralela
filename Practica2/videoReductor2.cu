@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "cuda_runtime.h"
+#include <omp.h>
 
 #include <opencv2/opencv.hpp>
 
@@ -11,7 +12,7 @@ using namespace std;  // Use the standard namespace
 long double init, _end;
 long double total_time;
 
-__global__ void reduce(Math *videoFrames, Math *finalVideoFrames, int n_frames, int n_threads){
+__global__ void reduce(pair<Mat,int> *videoFrames, Mat *finalVideoFrames, int n_frames, int n_threads){
     if(blockIdx.x<n_frames){
         Mat newFrame = Mat::zeros(videoFrames[blockIdx.x].first.size() / 3, videoFrames[blockIdx.x].first.type());
         for (int i = 0; i < videoFrames[blockIdx.x].first.rows; i += 3*n_threads)
@@ -81,6 +82,7 @@ int main(int argc, char *argv[])
 
     size_t size = n_blocks*sizeof(pair<Mat, int>);
     size_t mat_size = n_blocks*sizeof(Mat);
+    cudaError_t err = cudaSuccess;
 
     // Main loop to read and process video frames
     while (true)
@@ -126,7 +128,7 @@ int main(int argc, char *argv[])
         }
 
         // Exit the loop if no frames are read
-        if (videoFrames.empty())
+        if (n_frame==0)
         {
             break;
         }

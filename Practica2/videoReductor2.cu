@@ -35,9 +35,9 @@ __global__ void reduce(int *videoFrames, int *finalVideoFrames, int n_frames,int
             red /= 9;
             green /= 9;
             blue /= 9;
-            finalVideoFrames[((int) ((i+threadIdx.x)/3))*height*3+ ((int) ((j+blockIdx.x)/3))*3+0] = blue;
-            finalVideoFrames[((int) ((i+threadIdx.x)/3))*height*3+ ((int) ((j+blockIdx.x)/3))*3+1] = green;
-            finalVideoFrames[((int) ((i+threadIdx.x)/3))*height*3+ ((int) ((j+blockIdx.x)/3))*3+2] = red;
+            finalVideoFrames[((int) ((i)/3)+threadIdx.x)*height*3+ ((int) ((j/3))+blockIdx.x)*3+0] = blue;
+            finalVideoFrames[((int) ((i/3))+threadIdx.x)*height*3+ ((int) ((j/3))+blockIdx.x)*3+1] = green;
+            finalVideoFrames[((int) ((i/3))+threadIdx.x)*height*3+ ((int) ((j/3)+blockIdx.x))*3+2] = red;
         }
     }
 }
@@ -167,6 +167,7 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "Failed to copy vector finalVideoFrames from device to host (error code %s)!\n", cudaGetErrorString(err));
                 exit(EXIT_FAILURE);
             }
+
             //write the video
             Mat newFrame = Mat(width, height, CV_8UC3, (unsigned*)finalVideoFrames);
             video.write(newFrame);

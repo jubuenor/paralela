@@ -76,31 +76,52 @@ int main(int argc, char *argv[])
     // Initialize output video file using OpenCV's VideoWriter
     VideoWriter video(output, fourcc, fps, Size(640, 360));
 
-    // Declare an array to hold the final processed frames
-    Mat finalVideoFrames[frameCount];
-
     // Start performance timing
     init = omp_get_wtime();
 
-    int n_frame = 0;
+    size_t size = n_blocks*sizeof(pair<Mat, int>);
+    size_t mat_size = n_blocks*sizeof(Mat);
 
     // Main loop to read and process video frames
     while (true)
     {
         // Declare a vector to hold frames and their corresponding frame numbers
-        vector<pair<Mat, int>> videoFrames;
+        int n_frame = 0;
+
+        pair<Mat, int> *videoFrames = (pair<Mat, int> *)malloc(size);
+        Mat *finalVideoFrames = (Mat *)malloc(mat_size);
+        // Verify that allocations succeeded
+        if (videoFrames == NULL || finalVideoFrames == NULL) {
+            fprintf(stderr, "Failed to allocate host vectors!\n");
+            exit(EXIT_FAILURE);
+        }
+
+        pair<Mat, int>  *d_videoFrames = NULL;
+        err = cudaMalloc((void **)&d_videoFrames, size);
+
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Failed to allocate device vector videoFrames (error code %s)!\n", cudaGetErrorString(err));
+            exit(EXIT_FAILURE);
+        }
+
+        Mat  *d_finalVideoFrames = NULL;
+        err = cudaMalloc((void **)&d_finalVideoFrames, mat_size);
+
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Failed to allocate device vector finalVideoFrames (error code %s)!\n", cudaGetErrorString(err));
+            exit(EXIT_FAILURE);
+        }
 
         // Read 'n_threads' number of frames into the vector
         for (int i = 0; i < n_blocks; i++)
         {
             Mat frame;
             cap >> frame;
-
             if (frame.empty())
             {
                 break;
             }
-            videoFrames.push_back({frame, n_frame});
+            videoFrames[i] = {frame, n_frame};
             n_frame++;
         }
 
@@ -110,10 +131,40 @@ int main(int argc, char *argv[])
             break;
         }
 
+        //Copy input data from the host memory to the CUDA device
+        err = cudaMemcpy(d_videoFrames, videoFrames, size, cudaMemcpyHostToDevice);
+
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Failed to copy vector videoFrames from host to device (error code %s)!\n", cudaGetErrorString(err));
+            exit(EXIT_FAILURE);
+        }
+
+        err = cudaMemcpy(d_finalVideoFrames, finalVideoFrames, mat_size, cudaMemcpyHostToDevice);
+
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Failed to copy vector finalVideoFrames from host to device (error code %s)!\n", cudaGetErrorString(err));
+            exit(EXIT_FAILURE);
+        }
+
         // Enable OpenMP parallelization with the specified number of threads
-        reduce<<<n_blocks,n_threads>>>(d_videoFrames, d_finalVideoFrames, videoFrames.size(), n_threads);
+        reduce<<<n_blocks,n_threads>>>(d_videoFrames, d_finalVideoFrames, n_frame, n_threads);
         // Loop through the vector to process each frame
 
+        //Copy output data from the CUDA device to the host memory
+        err = cudaMemcpy(finalVideoFrames, d_finalVideoFrames, mat_size, cudaMemcpyDeviceToHost);
+
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Failed to copy vector C from device to host (error code %s)!\n", cudaGetErrorString(err));
+            exit(EXIT_FAILURE);
+        }
+
+        for (int i = 0; i < n_frame; i++)
+        {
+            video.write(finalVideoFrames[i]);
+            char c = (char)waitKey(1);
+            if (c == 27)
+                break;
+        }
     }
 
     // End performance timing and calculate total time
@@ -127,13 +178,6 @@ int main(int argc, char *argv[])
     fclose(fp);
 
     // Write the final processed frames to the output video
-    for (int i = 0; i < frameCount; i++)
-    {
-        video.write(finalVideoFrames[i]);
-        char c = (char)waitKey(1);
-        if (c == 27)
-            break;
-    }
 
     // Release video resources
     cap.release();

@@ -13,31 +13,33 @@ long double init, _end;
 long double total_time;
 
 __global__ void reduce(int *videoFrames, int *finalVideoFrames, int n_frames,int n_blocks, int n_threads, int width, int height){
-    for (int i = 0; i < height*3; i += 3*n_threads)
-    {
-        for (int j = 0; j < width*3; j += 3*n_blocks)
+    // loop into the matrix rows, the rows will be managed by the threads
+    for (int i = 0; i < height*3; i += 3*n_threads) // step of 3*n_threads, a thread manages a 3X3 pixel grid
+    {   // loop into the matrix columns, the columns will be managed by the blocks
+        for (int j = 0; j < width*3; j += 3*n_blocks) //step of 3*n_blocks a block manages n_trheadsx3 grid
         {
-
+            //initialize the color variables
             double blue = 0;
             double green = 0;
             double red = 0;
-
+            //each pixel of the finalFrames will be a mean of a 3x3 grid of the original video frame
             for (int ik = 0; ik < 3; ik++)
             {
                 for (int jk = 0; jk < 3; jk++)
                 {
-                    blue += videoFrames[(i+threadIdx.x + ik)*9*width+(j+blockIdx.x + jk)*3+0];
-                    green += videoFrames[(i+threadIdx.x + ik)*9*width+(j+blockIdx.x + jk)*3+1];
-                    red += videoFrames[(i+threadIdx.x + ik)*9*width+(j+blockIdx.x + jk)*3+2];
+                    blue += videoFrames[(i+threadIdx.x + ik)*9*width+(j+blockIdx.x + jk)*3+0];  //sum over the blue value of the originals pixels
+                    green += videoFrames[(i+threadIdx.x + ik)*9*width+(j+blockIdx.x + jk)*3+1]; //sum over the green value of the originals pixels
+                    red += videoFrames[(i+threadIdx.x + ik)*9*width+(j+blockIdx.x + jk)*3+2];   //sum over the red value of the originals pixels
                 }
             }
-
+            //mean of the colors
             red /= 9;
             green /= 9;
             blue /= 9;
-            finalVideoFrames[((int) ((i/3))+threadIdx.x)*height*3+ ((int) ((j/3))+blockIdx.x)*3+0] = blue;
-            finalVideoFrames[((int) ((i/3))+threadIdx.x)*height*3+ ((int) ((j/3))+blockIdx.x)*3+1] = green;
-            finalVideoFrames[((int) ((i/3))+threadIdx.x)*height*3+ ((int) ((j/3)+blockIdx.x))*3+2] = red;
+
+            finalVideoFrames[((int) ((i/3))+threadIdx.x)*width*3+ ((int) ((j/3))+blockIdx.x)*3+0] = blue;   //asign the neu color value to the final frame
+            finalVideoFrames[((int) ((i/3))+threadIdx.x)*width*3+ ((int) ((j/3))+blockIdx.x)*3+1] = green;  //asign the neu color value to the final frame
+            finalVideoFrames[((int) ((i/3))+threadIdx.x)*width*3+ ((int) ((j/3))+blockIdx.x)*3+2] = red;    //asign the neu color value to the final frame
         }
     }
 }
@@ -107,7 +109,7 @@ int main(int argc, char *argv[])
         {
             break;
         }
-
+        //loop over the charged n_block frames of the original video
         for(int n =0; n<n_frame; n++){
             //Memory allocation of the input and output arrays
             int *finalVideoFrames = (int *)malloc(height*width*3*sizeof(int));
@@ -158,8 +160,11 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
 
+
             // run cuda function
             reduce<<<n_blocks,n_threads>>>(d_videoFrames, d_finalVideoFrames, n_frame, n_blocks, n_threads, width, height);
+
+
             //Copy output data from the CUDA device to the host memory
             err = cudaMemcpy(finalVideoFrames, d_finalVideoFrames, height*width*3*sizeof(int), cudaMemcpyDeviceToHost);
             // Verify that copy succeeded
@@ -169,8 +174,10 @@ int main(int argc, char *argv[])
             }
 
             //write the video
-            Mat newFrame = Mat::zeros(videoFrames[n].first.size()/3, videoFrames[n].first.type());
 
+            //Create a new frame to allocate the new pixel's values
+            Mat newFrame = Mat::zeros(videoFrames[n].first.size()/3, videoFrames[n].first.type());
+            //loop over the pixel's values frame
             for(int i=0; i<height; i++){
                 for(int j=0; j< width; j++){
                     int blue = finalVideoFrames[i*width*3+j*3+0];
@@ -181,11 +188,13 @@ int main(int argc, char *argv[])
                 }
             }
 
+            // write the video
             video.write(newFrame);
             char c = (char)waitKey(1);
             if (c == 27)
                 break;
 
+            //clean the cuda memory
             err = cudaFree(d_videoFrames);
 
             if (err != cudaSuccess)
@@ -194,6 +203,7 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
 
+            //clean the cuda memory
             err = cudaFree(d_finalVideoFrames);
 
             if (err != cudaSuccess)
@@ -202,6 +212,7 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
 
+            //clean the memory
             free(videoFramesArray);
             free(finalVideoFrames);
         }

@@ -14,9 +14,9 @@ long double total_time;
 
 __global__ void reduce(int *videoFrames, int *finalVideoFrames, int n_frames,int n_blocks, int n_threads, int width, int height){
     // loop into the matrix rows, the rows will be managed by the threads
-    for (int i = 0; i < height*3; i += 3*n_threads) // step of 3*n_threads, a thread manages a 3X3 pixel grid
+    for (int i = 0; i < height; i += n_threads) // step of 3*n_threads, a thread manages a 3X3 pixel grid
     {   // loop into the matrix columns, the columns will be managed by the blocks
-        for (int j = 0; j < width*3; j += 3*n_blocks) //step of 3*n_blocks a block manages n_trheadsx3 grid
+        for (int j = 0; j < width; j += n_blocks) //step of 3*n_blocks a block manages n_trheadsx3 grid
         {
             //initialize the color variables
             double blue = 0;
@@ -27,9 +27,9 @@ __global__ void reduce(int *videoFrames, int *finalVideoFrames, int n_frames,int
             {
                 for (int jk = 0; jk < 3; jk++)
                 {
-                    blue += videoFrames[(i+threadIdx.x + ik)*9*width+(j+blockIdx.x + jk)*3+0];  //sum over the blue value of the originals pixels
-                    green += videoFrames[(i+threadIdx.x + ik)*9*width+(j+blockIdx.x + jk)*3+1]; //sum over the green value of the originals pixels
-                    red += videoFrames[(i+threadIdx.x + ik)*9*width+(j+blockIdx.x + jk)*3+2];   //sum over the red value of the originals pixels
+                    blue += videoFrames[(i+threadIdx.x)*27*width+(j+blockIdx.x)*9+9*jk+ik*9*width+0];  //sum over the blue value of the originals pixels
+                    green += videoFrames[(i+threadIdx.x)*27*width+(j+blockIdx.x)*9+9*jk+ik*9*width+1]; //sum over the green value of the originals pixels
+                    red += videoFrames[(i+threadIdx.x)*27*width+(j+blockIdx.x)*9+9*jk+ik*9*width+2];   //sum over the red value of the originals pixels
                 }
             }
             //mean of the colors
@@ -37,9 +37,9 @@ __global__ void reduce(int *videoFrames, int *finalVideoFrames, int n_frames,int
             green /= 9;
             blue /= 9;
 
-            finalVideoFrames[((int) ((i/3))+threadIdx.x)*width*3+ ((int) ((j/3))+blockIdx.x)*3+0] = blue;   //asign the neu color value to the final frame
-            finalVideoFrames[((int) ((i/3))+threadIdx.x)*width*3+ ((int) ((j/3))+blockIdx.x)*3+1] = green;  //asign the neu color value to the final frame
-            finalVideoFrames[((int) ((i/3))+threadIdx.x)*width*3+ ((int) ((j/3))+blockIdx.x)*3+2] = red;    //asign the neu color value to the final frame
+            finalVideoFrames[((int) ((i))+threadIdx.x)*width*3+ ((int) ((j))+blockIdx.x)*3+0] = blue;   //asign the neu color value to the final frame
+            finalVideoFrames[((int) ((i))+threadIdx.x)*width*3+ ((int) ((j))+blockIdx.x)*3+1] = green;  //asign the neu color value to the final frame
+            finalVideoFrames[((int) ((i))+threadIdx.x)*width*3+ ((int) ((j))+blockIdx.x)*3+2] = red;    //asign the neu color value to the final frame
         }
     }
 }

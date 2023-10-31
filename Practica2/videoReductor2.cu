@@ -186,6 +186,24 @@ int main(int argc, char *argv[])
             if (c == 27)
                 break;
 
+            err = cudaFree(d_videoFrames);
+
+            if (err != cudaSuccess)
+            {
+                fprintf(stderr, "Failed to free device vector d_videoFrames (error code %s)!\n", cudaGetErrorString(err));
+                exit(EXIT_FAILURE);
+            }
+
+            err = cudaFree(d_finalVideoFrames);
+
+            if (err != cudaSuccess)
+            {
+                fprintf(stderr, "Failed to free device vector d_finalVideoFrames (error code %s)!\n", cudaGetErrorString(err));
+                exit(EXIT_FAILURE);
+            }
+
+            free(videoFramesArray);
+            free(finalVideoFrames);
         }
     }
 

@@ -18,30 +18,28 @@ __global__ void reduce(int *videoFrames, int *finalVideoFrames, int n_frames,int
     {   // loop into the matrix columns, the columns will be managed by the blocks
         for (int j = 0; j < width; j += n_blocks) //step of 3*n_blocks a block manages n_trheadsx3 grid
         {
-            if(i+threadIdx.x<height && j+blockIdx.x<width){
-                //initialize the color variables
-                double blue = 0;
-                double green = 0;
-                double red = 0;
-                //each pixel of the finalFrames will be a mean of a 3x3 grid of the original video frame
-                for (int ik = 0; ik < 3; ik++)
+            //initialize the color variables
+            double blue = 0;
+            double green = 0;
+            double red = 0;
+            //each pixel of the finalFrames will be a mean of a 3x3 grid of the original video frame
+            for (int ik = 0; ik < 3; ik++)
+            {
+                for (int jk = 0; jk < 3; jk++)
                 {
-                    for (int jk = 0; jk < 3; jk++)
-                    {
-                        blue += videoFrames[(i+threadIdx.x)*27*width+(j+blockIdx.x)*9+9*jk+ik*9*width+0];  //sum over the blue value of the originals pixels
-                        green += videoFrames[(i+threadIdx.x)*27*width+(j+blockIdx.x)*9+9*jk+ik*9*width+1]; //sum over the green value of the originals pixels
-                        red += videoFrames[(i+threadIdx.x)*27*width+(j+blockIdx.x)*9+9*jk+ik*9*width+2];   //sum over the red value of the originals pixels
-                    }
+                    blue += videoFrames[(i+threadIdx.x)*27*width+(j+blockIdx.x)*9+9*jk+ik*9*width+0];  //sum over the blue value of the originals pixels
+                    green += videoFrames[(i+threadIdx.x)*27*width+(j+blockIdx.x)*9+9*jk+ik*9*width+1]; //sum over the green value of the originals pixels
+                    red += videoFrames[(i+threadIdx.x)*27*width+(j+blockIdx.x)*9+9*jk+ik*9*width+2];   //sum over the red value of the originals pixels
                 }
-                //mean of the colors
-                red /= 9;
-                green /= 9;
-                blue /= 9;
-
-                finalVideoFrames[((int) ((i))+threadIdx.x)*width*3+ ((int) ((j))+blockIdx.x)*3+0] = blue;   //asign the neu color value to the final frame
-                finalVideoFrames[((int) ((i))+threadIdx.x)*width*3+ ((int) ((j))+blockIdx.x)*3+1] = green;  //asign the neu color value to the final frame
-                finalVideoFrames[((int) ((i))+threadIdx.x)*width*3+ ((int) ((j))+blockIdx.x)*3+2] = red;    //asign the neu color value to the final frame
             }
+            //mean of the colors
+            red /= 9;
+            green /= 9;
+            blue /= 9;
+
+            finalVideoFrames[((int) ((i))+threadIdx.x)*width*3+ ((int) ((j))+blockIdx.x)*3+0] = blue;   //asign the neu color value to the final frame
+            finalVideoFrames[((int) ((i))+threadIdx.x)*width*3+ ((int) ((j))+blockIdx.x)*3+1] = green;  //asign the neu color value to the final frame
+            finalVideoFrames[((int) ((i))+threadIdx.x)*width*3+ ((int) ((j))+blockIdx.x)*3+2] = red;    //asign the neu color value to the final frame
         }
     }
 }
@@ -118,7 +116,6 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    init = omp_get_wtime();
 
     printf("Iniciando procesamiento del video...\n");
     // Main loop to read and process video frames
@@ -149,14 +146,18 @@ int main(int argc, char *argv[])
 
         //loop over the charged n_block frames of the original video
         for(int n =0; n<n_frame; n++){
+
+            init = omp_get_wtime();
             //Copy the frame content to 1D Array
-            for(int j = 0; j<width*3; j++){
-                for(int i = 0; i<height*3; i++){
+            for(int i = 0; i<height*3; i++){
+                for(int j = 0; j<width*3; j++){
                     videoFramesArray[i*width*9+j*3+0] = videoFrames[n].first.at<Vec3b>(i, j)[0];
                     videoFramesArray[i*width*9+j*3+1] = videoFrames[n].first.at<Vec3b>(i, j)[1];
                     videoFramesArray[i*width*9+j*3+2] = videoFrames[n].first.at<Vec3b>(i, j)[2];
                 }
             }
+            _end = omp_get_wtime();
+            total_time += _end - init;
 
             // Copy the content of the frame from Host to Device
             err = cudaMemcpy(d_videoFrames, videoFramesArray, 3*height*3*width*3*sizeof(int), cudaMemcpyHostToDevice);
@@ -199,9 +200,6 @@ int main(int argc, char *argv[])
                 break;
         }
     }
-
-    _end = omp_get_wtime();
-    total_time += _end - init;
 
     // End performance timing and calculate total time
     fprintf(fp, "- Tiempo total: %Lfs \n", total_time);

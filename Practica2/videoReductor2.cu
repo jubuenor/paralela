@@ -55,6 +55,8 @@ int main(int argc, char *argv[])
     cout << "Iniciando programa con " << n_blocks << " bloques..." << endl;
     cout << "Iniciando programa con " << n_threads << " hilos..." << endl;
 
+    total_time = 0;
+
     // Open a file to write the results
     FILE *fp = fopen("results.txt", "a");
     fprintf(fp, "Bloques: %d \n", n_blocks);
@@ -77,11 +79,43 @@ int main(int argc, char *argv[])
     VideoWriter video(output, fourcc, fps, Size(640, 360));
 
     // Start performance timing
-    init = omp_get_wtime();
 
     cudaError_t err = cudaSuccess;
     int height = 360;
     int width = 640;
+
+    //Memory allocation of the host input and output arrays
+    int *finalVideoFrames = (int *)malloc(height*width*3*sizeof(int));
+    int *videoFramesArray = (int *)malloc(3*height*3*width*3*sizeof(int));
+    // Verify that allocations succeeded
+    if (finalVideoFrames == NULL) {
+        fprintf(stderr, "Failed to allocate host vector finalVideoFrames!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (videoFramesArray == NULL) {
+        fprintf(stderr, "Failed to allocate host vector videoFramesArray!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    //Memory allocation  of the device array
+    int *d_finalVideoFrames = NULL;
+    err = cudaMalloc((void **)&d_finalVideoFrames, height*width*3*sizeof(int));
+    // Verify that dev allocations succeeded
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Failed to allocate device vector videoFrames (error code %s)!\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
+
+    //Memory allocation  of the device array
+    int *d_videoFrames = NULL;
+    err = cudaMalloc((void **)&d_videoFrames, 3*height*3*width*3*sizeof(int));
+    // Verify that dev allocations succeeded
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Failed to allocate device vector videoFrames (error code %s)!\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
+
 
     printf("Iniciando procesamiento del video...\n");
     // Main loop to read and process video frames
@@ -109,22 +143,11 @@ int main(int argc, char *argv[])
         {
             break;
         }
+
         //loop over the charged n_block frames of the original video
         for(int n =0; n<n_frame; n++){
-            //Memory allocation of the input and output arrays
-            int *finalVideoFrames = (int *)malloc(height*width*3*sizeof(int));
-            int *videoFramesArray = (int *)malloc(3*height*3*width*3*sizeof(int));
-            // Verify that allocations succeeded
-            if (finalVideoFrames == NULL) {
-                fprintf(stderr, "Failed to allocate host vector finalVideoFrames!\n");
-                exit(EXIT_FAILURE);
-            }
 
-            if (videoFramesArray == NULL) {
-                fprintf(stderr, "Failed to allocate host vector videoFramesArray!\n");
-                exit(EXIT_FAILURE);
-            }
-
+            init = omp_get_wtime();
             //Copy the frame content to 1D Array
             for(int i = 0; i<height*3; i++){
                 for(int j = 0; j<width*3; j++){
@@ -133,24 +156,8 @@ int main(int argc, char *argv[])
                     videoFramesArray[i*width*9+j*3+2] = videoFrames[n].first.at<Vec3b>(i, j)[2];
                 }
             }
-
-            //Memory allocation  of the device array
-            int *d_finalVideoFrames = NULL;
-            err = cudaMalloc((void **)&d_finalVideoFrames, height*width*3*sizeof(int));
-            // Verify that dev allocations succeeded
-            if (err != cudaSuccess) {
-                fprintf(stderr, "Failed to allocate device vector videoFrames (error code %s)!\n", cudaGetErrorString(err));
-                exit(EXIT_FAILURE);
-            }
-
-            //Memory allocation  of the device array
-            int *d_videoFrames = NULL;
-            err = cudaMalloc((void **)&d_videoFrames, 3*height*3*width*3*sizeof(int));
-            // Verify that dev allocations succeeded
-            if (err != cudaSuccess) {
-                fprintf(stderr, "Failed to allocate device vector videoFrames (error code %s)!\n", cudaGetErrorString(err));
-                exit(EXIT_FAILURE);
-            }
+            _end = omp_get_wtime();
+            total_time += _end - init;
 
             // Copy the content of the frame from Host to Device
             err = cudaMemcpy(d_videoFrames, videoFramesArray, 3*height*3*width*3*sizeof(int), cudaMemcpyHostToDevice);
@@ -160,10 +167,8 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
 
-
             // run cuda function
             reduce<<<n_blocks,n_threads>>>(d_videoFrames, d_finalVideoFrames, n_frame, n_blocks, n_threads, width, height);
-
 
             //Copy output data from the CUDA device to the host memory
             err = cudaMemcpy(finalVideoFrames, d_finalVideoFrames, height*width*3*sizeof(int), cudaMemcpyDeviceToHost);
@@ -173,7 +178,7 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
 
-            //write the video
+            //Write the video
 
             //Create a new frame to allocate the new pixel's values
             Mat newFrame = Mat::zeros(videoFrames[n].first.size()/3, videoFrames[n].first.type());
@@ -193,38 +198,35 @@ int main(int argc, char *argv[])
             char c = (char)waitKey(1);
             if (c == 27)
                 break;
-
-            //clean the cuda memory
-            err = cudaFree(d_videoFrames);
-
-            if (err != cudaSuccess)
-            {
-                fprintf(stderr, "Failed to free device vector d_videoFrames (error code %s)!\n", cudaGetErrorString(err));
-                exit(EXIT_FAILURE);
-            }
-
-            //clean the cuda memory
-            err = cudaFree(d_finalVideoFrames);
-
-            if (err != cudaSuccess)
-            {
-                fprintf(stderr, "Failed to free device vector d_finalVideoFrames (error code %s)!\n", cudaGetErrorString(err));
-                exit(EXIT_FAILURE);
-            }
-
-            //clean the memory
-            free(videoFramesArray);
-            free(finalVideoFrames);
         }
     }
 
     // End performance timing and calculate total time
-    _end = omp_get_wtime();
-    total_time = _end - init;
     fprintf(fp, "- Tiempo total: %Lfs \n", total_time);
     cout << "Tiempo total: " << total_time << "s" << endl;
     cout << "Resultado guardado en results.txt" << endl;
 
+    //clean the cuda memory
+    err = cudaFree(d_videoFrames);
+
+    if (err != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to free device vector d_videoFrames (error code %s)!\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
+
+    //clean the cuda memory
+    err = cudaFree(d_finalVideoFrames);
+
+    if (err != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to free device vector d_finalVideoFrames (error code %s)!\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
+
+    //clean the memory
+    free(videoFramesArray);
+    free(finalVideoFrames);
     // Close the results file
     fclose(fp);
 

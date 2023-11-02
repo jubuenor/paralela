@@ -6,54 +6,53 @@
 #include <opencv2/opencv.hpp>
 
 using namespace cv;  // Use OpenCV's namespace
-using namespace std; // Use the standard namespace
+using namespace std;  // Use the standard namespace
 
 // Declare global variables for performance timing
 long double init, _end;
 long double total_time;
+unsigned char *d_videoFrames, *d_finalVideoFrames;
 
-struct Pixel
-{
-    int red;
-    int green;
-    int blue;
-};
 
-__global__ void reduce(struct Pixel *videoFrames, struct Pixel *finalVideoFrames, int n_threads, int width, int size)
-{
-    int n = blockIdx.x;
-    int a = 1080 / n_threads;
-    int b = 1920 / n_threads;
-    int thread = threadIdx.x;
-
-    for (int i = thread * a; i < thread * a + a; i += 3)
-    {
-        for (int j = thread * b; j < thread * b + b; j += 3)
+__global__ void reduce(unsigned char *videoFrames, unsigned char *finalVideoFrames, int n_blocks, int n_threads, int width, int height){
+    // loop into the matrix rows, the rows will be managed by the threads
+    for (int i = 0; i < height; i += n_threads) // step of 3*n_threads, a thread manages a 3X3 pixel grid
+    {   // loop into the matrix columns, the columns will be managed by the blocks
+        for (int j = 0; j < width; j += n_blocks) //step of 3*n_blocks a block manages n_trheadsx3 grid
         {
-            double blue = 0;
-            double green = 0;
-            double red = 0;
-
-            for (int ik = 0; ik < 3; ik++)
-            {
-                for (int jk = 0; jk < 3; jk++)
+            //initialize the color variables
+            if((i+threadIdx.x)<height && (j+blockIdx.x)<width){
+                double blue = 0;
+                double green = 0;
+                double red = 0;
+                //each pixel of the finalFrames will be a mean of a 3x3 grid of the original video frame
+                for (int ik = 0; ik < 3; ik++)
                 {
-                    blue += videoFrames[n * size + i * width + j + ik * 3 + jk].blue;
-                    green += videoFrames[n * size + i * width + j + ik * 3 + jk].green;
-                    red += videoFrames[n * size + i * width + j + ik * 3 + jk].red;
+                    for (int jk = 0; jk < 3; jk++)
+                    {
+                        blue += videoFrames[(i+threadIdx.x)*27*width+(j+blockIdx.x)*9+9*jk+ik*9*width+0];  //sum over the blue value of the originals pixels
+                        green += videoFrames[(i+threadIdx.x)*27*width+(j+blockIdx.x)*9+9*jk+ik*9*width+1]; //sum over the green value of the originals pixels
+                        red += videoFrames[(i+threadIdx.x)*27*width+(j+blockIdx.x)*9+9*jk+ik*9*width+2];   //sum over the red value of the originals pixels
+                    }
                 }
+                //mean of the colors
+                red /= 9;
+                green /= 9;
+                blue /= 9;
+
+                finalVideoFrames[((int) ((i))+threadIdx.x)*width*3+ ((int) ((j))+blockIdx.x)*3+0] = blue;   //asign the new color value to the final frame
+                finalVideoFrames[((int) ((i))+threadIdx.x)*width*3+ ((int) ((j))+blockIdx.x)*3+1] = green;  //asign the new color value to the final frame
+                finalVideoFrames[((int) ((i))+threadIdx.x)*width*3+ ((int) ((j))+blockIdx.x)*3+2] = red;    //asign the new color value to the final frame
             }
-
-            red /= 9;
-            green /= 9;
-            blue /= 9;
-            finalVideoFrames[n * size + i / 3 * width / 3 + j / 3].blue = blue;
-            finalVideoFrames[n * size + i / 3 * width / 3 + j / 3].green = green;
-            finalVideoFrames[n * size + i / 3 * width / 3 + j / 3].red = red;
-
-            // printf("(%d, %d, %d) ", finalVideoFrames[n * size + i * width / 3 + j].blue, finalVideoFrames[n * size + i * width / 3 + j].green, finalVideoFrames[n * size + i * width / 3 + j].red);
         }
-        // printf("\n");
+    }
+}
+
+void init_cuda_kernel(cudaError_t err){
+    // Verify that dev allocations succeeded
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Failed to allocate device vector (error code %s)!\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -63,14 +62,17 @@ int main(int argc, char *argv[])
     string input = argv[1];
     string output = argv[2];
     int n_blocks = atoi(argv[3]);  // Convert the third argument to an integer for number of blocks
-    int n_threads = atoi(argv[4]); // Convert the third argument to an integer for number of threads
+    int n_threads = atoi(argv[4]);  // Convert the third argument to an integer for number of threads
 
     cout << "Iniciando programa con " << n_blocks << " bloques..." << endl;
     cout << "Iniciando programa con " << n_threads << " hilos..." << endl;
 
+    total_time = 0;
+
     // Open a file to write the results
     FILE *fp = fopen("results.txt", "a");
-    fprintf(fp, "Bloques: %d \n", n_blocks);
+    fprintf(fp, "%d \t", n_blocks);
+    fprintf(fp, "%d \t", n_threads);
 
     // Open input video file using OpenCV's VideoCapture
     VideoCapture cap(input);
@@ -90,159 +92,101 @@ int main(int argc, char *argv[])
     VideoWriter video(output, fourcc, fps, Size(640, 360));
 
     // Start performance timing
-    init = omp_get_wtime();
+    cudaError_t err;
+    int height = 360;
+    int width = 640;
 
-    cudaError_t err = cudaSuccess;
-    int initialHeight = 1080;
-    int initialWidth = 1920;
-    int finalHeight = 360;
-    int finalWidth = 640;
+    //Memory allocation of the host input and output arrays
+    int *finalVideoFrames = (int *)malloc(height*width*3*sizeof(int));
+    int *videoFramesArray = (int *)malloc(3*height*3*width*3*sizeof(int));
+    // Verify that allocations succeeded
+    if (finalVideoFrames == NULL) {
+        fprintf(stderr, "Failed to allocate host vector finalVideoFrames!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (videoFramesArray == NULL) {
+        fprintf(stderr, "Failed to allocate host vector videoFramesArray!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    Mat newFrame = Mat::zeros(height, width, CV_8UC3);
+
+    init_cuda_kernel(cudaMalloc<unsigned char>(&d_finalVideoFrames, newFrame.step*newFrame.rows));
+    init_cuda_kernel(cudaMalloc<unsigned char>(&d_videoFrames, 3*height*3*width*3*sizeof(unsigned char)));
 
     printf("Iniciando procesamiento del video...\n");
+    init = omp_get_wtime();
+    int n = 0;
     // Main loop to read and process video frames
     while (true)
     {
         // Declare a vector to hold frames and their corresponding frame numbers
-        vector<Mat> videoFrames;
-        int n_frame = 0;
-        // Read 'n_threads' number of frames into the vector
-        for (int i = 0; i < n_blocks; i++)
-        {
-            Mat frame;
-            cap >> frame;
+        Mat videoFrames;
+        cap >> videoFrames;
 
-            if (frame.empty())
-            {
-                break;
-            }
-            videoFrames.push_back(frame);
-            n_frame++;
-        }
-
-        // Exit the loop if no frames are read
         if (videoFrames.empty())
         {
-            break;
-        }
-        // Memory allocation of the input and output arrays
-        int arraySizeInitial = videoFrames.size() * initialWidth * initialHeight * sizeof(struct Pixel);
-        int arraySizeFinal = videoFrames.size() * finalWidth * finalHeight * sizeof(struct Pixel);
-
-        struct Pixel *finalVideoFrames = (struct Pixel *)malloc(arraySizeFinal);
-        struct Pixel *videoFramesArray = (struct Pixel *)malloc(arraySizeInitial);
-        // Verify that allocations succeeded
-        if (finalVideoFrames == NULL)
-        {
-            fprintf(stderr, "Failed to allocate host vector finalVideoFrames!\n");
-            exit(EXIT_FAILURE);
-        }
-
-        if (videoFramesArray == NULL)
-        {
-            fprintf(stderr, "Failed to allocate host vector videoFramesArray!\n");
-            exit(EXIT_FAILURE);
-        }
-
-        // Copy the frame content to 1D Array
-        for (int n = 0; n < videoFrames.size(); n++)
-            for (int i = 0; i < initialHeight; i++)
-            {
-                for (int j = 0; j < initialWidth; j++)
-                {
-                    videoFramesArray[n * videoFrames.size() + i * initialWidth + j].blue = videoFrames[n].at<Vec3b>(i, j)[0];
-                    videoFramesArray[n * videoFrames.size() + i * initialWidth + j].green = videoFrames[n].at<Vec3b>(i, j)[1];
-                    videoFramesArray[n * videoFrames.size() + i * initialWidth + j].red = videoFrames[n].at<Vec3b>(i, j)[2];
-                    // printf("(%d, %d, %d)", videoFrames[n].at<Vec3b>(i, j)[0], videoFrames[n].at<Vec3b>(i, j)[1], videoFrames[n].at<Vec3b>(i, j)[2]);
-                    // printf("(%d, %d, %d) ", videoFramesArray[n * videoFrames.size() + i * initialWidth + j].blue, videoFramesArray[n * videoFrames.size() + i * initialWidth + j].green, videoFramesArray[n * videoFrames.size() + i * initialWidth + j].red);
-                }
-                // printf("\n");
-            }
-
-        // Memory allocation  of the device array
-        struct Pixel *d_videoFrames = NULL;
-        err = cudaMalloc((void **)&d_videoFrames, arraySizeInitial);
-        // Verify that dev allocations succeeded
-        if (err != cudaSuccess)
-        {
-            fprintf(stderr, "Failed to allocate device vector videoFrames (error code %s)!\n", cudaGetErrorString(err));
-            exit(EXIT_FAILURE);
-        }
-
-        // Memory allocation  of the device array
-        struct Pixel *d_finalVideoFrames = NULL;
-        err = cudaMalloc((void **)&d_finalVideoFrames, arraySizeFinal);
-        // Verify that dev allocations succeeded
-        if (err != cudaSuccess)
-        {
-            fprintf(stderr, "Failed to allocate device vector videoFrames (error code %s)!\n", cudaGetErrorString(err));
-            exit(EXIT_FAILURE);
+          break;
         }
 
         // Copy the content of the frame from Host to Device
-        err = cudaMemcpy(d_videoFrames, videoFramesArray, arraySizeInitial, cudaMemcpyHostToDevice);
+        err = cudaMemcpy(d_videoFrames, videoFrames.ptr(), 3*height*3*width*3*sizeof(unsigned char), cudaMemcpyHostToDevice);
         // Verify that copy succeeded
-        if (err != cudaSuccess)
-        {
-            fprintf(stderr, "Failed to copy vector videoFramesArray from host to device (error code %s)!\n", cudaGetErrorString(err));
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Failed to copy vector videoFrames from host to device (error code %s)!\n", cudaGetErrorString(err));
             exit(EXIT_FAILURE);
         }
 
         // run cuda function
-        reduce<<<n_blocks, n_threads>>>(d_videoFrames, d_finalVideoFrames, n_threads, initialWidth, videoFrames.size());
+        reduce<<<n_blocks,n_threads>>>(d_videoFrames, d_finalVideoFrames, n_blocks, n_threads, width, height);
 
-        // copy output data from the cuda device to the host memory
-        err = cudaMemcpy(finalVideoFrames, d_finalVideoFrames, arraySizeFinal, cudaMemcpyDeviceToHost);
-        // verify that copy succeeded
-        if (err != cudaSuccess)
-        {
-            fprintf(stderr, "failed to copy vector finalvideoframes from device to host (error code %s)!\n", cudaGetErrorString(err));
+        //Write the video
+        //Create a new frame to allocate the new pixel's values
+        //loop over the pixel's values frame
+        err = cudaMemcpy(newFrame.ptr(), d_finalVideoFrames, newFrame.step*newFrame.rows, cudaMemcpyDeviceToHost);
+        // Verify that copy succeeded
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Failed to copy vector finalVideoFrames from device to host (error code %s)!\n", cudaGetErrorString(err));
             exit(EXIT_FAILURE);
         }
 
         // write the video
-
-        for (int n = 0; n < videoFrames.size(); n++)
-        {
-            Mat newFrame = Mat::zeros(videoFrames[n].size() / 3, videoFrames[n].type());
-            for (int i = 0; i < finalHeight; i++)
-            {
-                for (int j = 0; j < finalWidth; j++)
-                {
-                    int blue = finalVideoFrames[n * videoFrames.size() + i * finalWidth + j].blue;
-                    int green = finalVideoFrames[n * videoFrames.size() + i * finalWidth + j].green;
-                    int red = finalVideoFrames[n * videoFrames.size() + i * finalWidth + j].red;
-                    Vec3b color = Vec3b(blue, green, red);
-                    newFrame.at<Vec3b>(i, j) = color;
-                }
-            }
-
-            // for (int ik = 0; ik < newFrame.rows; ik++)
-            //{
-            // for (int jk = 0; jk < newFrame.cols; jk++)
-            //{
-            // printf("(%d, %d, %d) ", newFrame.at<Vec3b>(ik, jk)[0], newFrame.at<Vec3b>(ik, jk)[1], newFrame.at<Vec3b>(ik, jk)[2]);
-            //}
-            // printf("\n");
-            //}
-            video.write(newFrame);
-        }
-
+        video.write(newFrame);
         char c = (char)waitKey(1);
-        if (c == 27)
-            break;
-        cudaFree(d_videoFrames);
-        cudaFree(d_finalVideoFrames);
-        free(finalVideoFrames);
-        free(videoFramesArray);
+        if (c == 27){
+          break;
+        }
     }
 
-    // End performance timing and calculate total time
     _end = omp_get_wtime();
-    total_time = _end - init;
-    fprintf(fp, "- Tiempo total: %Lfs \n", total_time);
+    total_time += _end - init;
+    // End performance timing and calculate total time
+    fprintf(fp, "%Lfs \n", total_time);
     cout << "Tiempo total: " << total_time << "s" << endl;
     cout << "Resultado guardado en results.txt" << endl;
 
+    //clean the cuda memory
+    err = cudaFree(d_videoFrames);
+
+    if (err != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to free device vector d_videoFrames (error code %s)!\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
+
+    //clean the cuda memory
+    err = cudaFree(d_finalVideoFrames);
+
+    if (err != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to free device vector d_finalVideoFrames (error code %s)!\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
+
+    //clean the memory
+    free(videoFramesArray);
+    free(finalVideoFrames);
     // Close the results file
     fclose(fp);
 

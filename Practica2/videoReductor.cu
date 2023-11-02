@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
     _end = omp_get_wtime();
     total_time += _end - init;
     // End performance timing and calculate total time
-    fprintf(fp, "%Lfs \n", total_time);
+    fprintf(fp, "%Lf \n", total_time);
     cout << "Tiempo total: " << total_time << "s" << endl;
     cout << "Resultado guardado en results.txt" << endl;
 

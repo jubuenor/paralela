@@ -32,3 +32,4 @@ int main()
     system("./video_reduction japan.mp4 output.mp4 4");
     system("./video_reduction japan.mp4 output.mp4 8");
     system("./video_reduction japan.mp4 output.mp4 16");
+}

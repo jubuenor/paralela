@@ -6,7 +6,7 @@
                 "${workspaceFolder}/**",
                 "/usr/local/include/opencv4",
                 "/usr/include/deal.II/base"
-                "/usr/bin/mpicc"
+                "/usr/bin/mpicc",
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",

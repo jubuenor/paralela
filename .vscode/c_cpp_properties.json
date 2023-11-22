@@ -1,15 +1,23 @@
 {
-  "configurations": [
-    {
-      "name": "Linux",
-      "includePath": ["${workspaceFolder}/**", "/usr/local/include/opencv4"],
-      "defines": [],
-      "compilerPath": "/usr/bin/clang",
-      "cStandard": "gnu17",
-      "cppStandard": "gnu++14",
-      "intelliSenseMode": "${default}",
-      "compilerArgs": ["-lgomp", "-fopenmp"]
-    }
-  ],
-  "version": 4
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/usr/local/include/opencv4",
+                "/usr/include/deal.II/base"
+                "/usr/bin/mpicc"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++14",
+            "intelliSenseMode": "${default}",
+            "compilerArgs": [
+                "-lgomp",
+                "-fopenmp"
+            ]
+        }
+    ],
+    "version": 4
 }

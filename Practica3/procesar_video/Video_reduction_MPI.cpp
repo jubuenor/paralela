@@ -9,11 +9,12 @@ using namespace std;
 long double init, _end; //Init and end time
 long double total_time; //variable for the total time
 
-unsigned char *videoFrames, *finalVideoFrames;  //Unsigned arrays for save the input and output frames
+unsigned char *videoFrames, finalVideoFrames;  //Unsigned arrays for save the input and output frames
 
 
-unsigned char * reduce(unsigned char *videoFrame, int width, int height){
-    unsigned char finalVideoFrame[width*height];    //Array to save the reduced frame
+unsigned char* reduce(unsigned char *videoFrame, int width, int height){
+    unsigned char* finalVideoFrame = new unsigned char[width*height*3]; // Dynamically allocated array
+    //unsigned char finalVideoFrame[width*height*3];    //Array to save the reduced frame
 
     for (int i = 0; i < height; i += 3) //i goes over all the rows
     {
@@ -42,15 +43,15 @@ unsigned char * reduce(unsigned char *videoFrame, int width, int height){
             finalVideoFrame[i*width*3+ j*3+2] = red;    //asign the new color value to the final frame
         }
     }
-    return finalVideoFrame; //return the reduced frame
+    return  finalVideoFrame; //return the reduced frame
 }
 
 
 int main(int argc, char *argv[]){
 
-    string input = argv[1];     //<-- Nombre del video de entrada // Hay que arreglar estofp
-    string output = argv[2];    //<--Nombre del video de salida //Hay que arreglar esto plis
-
+    string input = "/home/user/Desktop/MateoCodes/nacional/Paralela/paralela/Practica3/test.mp4"; 
+    string output = "/home/user/Desktop/MateoCodes/nacional/Paralela/paralela/Practica3/roorr.mp4"; 
+    
     // Open a file to write the results
     //FILE *fp = fopen("results.txt", "a");
     //fprintf(fp, "Hilos: %d \n", n_threads);
@@ -65,8 +66,8 @@ int main(int argc, char *argv[]){
     }
 
     // Retrieve properties of the input video
-    int fps = cap.get(CAP_PROP_FPS);
-    int fourcc = cap.get(CAP_PROP_FOURCC);
+    int fps = cap.get(CAP_PROP_FPS) ;
+    int fourcc = static_cast<int>(cap.get(CAP_PROP_FOURCC));  // Make sure to cast to int
     int frameCount = cap.get(CAP_PROP_FRAME_COUNT);
 
     // Initialize output video file using OpenCV's VideoWriter
@@ -75,9 +76,7 @@ int main(int argc, char *argv[]){
     VideoWriter video(output, fourcc, fps, Size(width, height));
 
     // Start performance timing
-    init = MPI_Wtime();
-
-    Mat newFrame;   //Mat structure that saves all the reduced frames
+    //init = MPI_Wtime();
 
     int n_frame;    //Num of frames readed in each iteration of while
 
@@ -85,27 +84,39 @@ int main(int argc, char *argv[]){
     
     // Initialize MPI
     MPI_Init(&argc, &argv);
+
+    MPI_Status status;
+    MPI_Request request;
+    
     // Obtain the number of process
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
     // Obtain the process' rank number
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
     printf("Inicializando la reduccion del video usando %d máquinas.", world_size);
+    
+    // unsigned char *videoFrame = new unsigned char[3*width*3*height]; // Dynamically allocated array
+    //    unsigned char **finalVideoFrames = new unsigned char*[world_size]; // Pointer to a pointer for 2D array
+    
+    cout << "\n--->" << world_size<<endl;
+    unsigned char *videoFrame = new unsigned char[3*width*3*height*3]; // Dynamically allocated array
+    unsigned char **finalVideoFrames = new unsigned char*[world_size]; // Pointer to a pointer for 2D array
+    unsigned char *finalVideoFrame = new unsigned char[width*height*3]; // Dynamically allocated array
+    // Main loop to read a  nd process video frames
 
-    unsigned char videoFrame[3*width*3*height];     //Input Frame info inside each process
-    unsigned char finalVideoFrame[width*height];    //Reduced Frame info inside each process
-
-    // Main loop to read and process video frames
-   /*
+    int band = 0;
+    int cont = 0 ;
     while (true)
     {
-        if(world_rank==0){  //Only the host Process reads and send the frames
+        if(world_rank==0){  
+            //Only the host Process reads and send the frames
             n_frame = 0;    //init number of Frames readed for iteration
             vector<unsigned char*> videoFrames; //unsigned char vector that saves all the frames that the host reads
 
             // Read 'world_size' number of frames into the vector
             for (int i = 0; i < world_size; i++)
             {
+
                 Mat frame;
                 cap >> frame;
 
@@ -120,86 +131,81 @@ int main(int argc, char *argv[]){
             // Exit the loop if no frames are read
             if (videoFrames.empty())
             {
+                cout<<"Entro"<<endl;
+                band = 1;
+                
+            }
+            for(int i = 1; i<world_size; i++){
+                
+                MPI_Isend(&band,1,MPI_INT,i,0,MPI_COMM_WORLD,&request);
+                MPI_Wait(&request, &status); 
+            }
+            if (band == 1){
                 break;
             }
-
             for(int i = 1; i<world_size; i++){
+                
                 videoFrame = videoFrames[i];    //Sending each frame to each proces from the host process
-                MPI_Sendrecv_replace(videoFrame, 1, MPI_UNSIGNED_CHAR, i, 0, 0, 0,MPI_COMM_WORLD, &status); //Recieving the frames in each process
-                //(buf, count, MPI_Datatype, dest, sendtag, source, recvtag, MPI_Comm, status)
+                MPI_Isend(videoFrame, 1, MPI_UNSIGNED_CHAR, i, 0, MPI_COMM_WORLD,&request); //Recieving the frames in each proces
+                MPI_Wait(&request, &status); 
             }
             videoFrame = videoFrames[0];    //The host process takes the first frame
         }
 
-        finalVideoFrame = reduce(videoFrame, width, height);    //Each process reduce the frame.
-
-        if(world_rank!=0){
-            MPI_Send(finalVideoFrame, 1, MPI_UNSIGNED_CHAR, 0, 0, MPI_COMM_WORLD);  //each non local host send the reduced Frames to the host
-        }else{
-            finalVideoFrames[world_rank] = finalVideoFrame; //The host process saves the reduced frame at pos 0 fo finalVideoFrames
-            for(int i = 1; i<world_size; i++){
-                MPI_Recv(finalVideoFrame, 1, MPI_UNSIGNED_CHAR, i, 0, &status); //The host process recieve the reduced frames from the others process
-                finalVideoFrames[i] = finalVideoFrame;  //The host sort the reduced frames from the non host process in FinalVideoFrames array
+        else{
+            
+            MPI_Irecv(&band,1,MPI_INT,0,0,MPI_COMM_WORLD,&request);
+            MPI_Wait(&request, &status); 
+            cout<<"aa"<< band <<world_rank<<endl;
+            if (band == 1){
+                break;
             }
-
-            for(int i = 0; i<n_frame;i++){
-                newFrame.ptr() = finalVideoFrames[i];       //The host process write the video
-                video.write(newFrame);
-                char c = (char)waitKey(1);
-                if (c == 27)
-                    break;
-            }
+            MPI_Irecv(videoFrame,1,MPI_UNSIGNED_CHAR,0,0,MPI_COMM_WORLD,&request);
+            MPI_Wait(&request, &status); 
+            
         }
+        
+        if(world_rank!=0){
+            
+            finalVideoFrame = reduce(videoFrame, width, height);    //Each process reduce the frame.
+            MPI_Isend(finalVideoFrame, 1, MPI_UNSIGNED_CHAR, 0, 0, MPI_COMM_WORLD,&request);  //each non local host send the reduced Frames to the host
+            MPI_Wait(&request, &status); 
 
-        MPI_Barrier(MPI_COMM_WORLD);    //The process wait for finish the video writing
-    }
-    */
-    
-    if (world_rank == 0) {
-        while (true) {
-            for (int i = 1; i < world_size; ++i) {
-                Mat frame;
-                cap >> frame;
-                if (frame.empty()) {
-                    // Envía una señal a los procesos para terminar
-                    // Por ejemplo, puedes enviar un tamaño de frame de 0
-                    int frameSize[2] = {0, 0};
-                    MPI_Send(&frameSize, 2, MPI_INT, i, 0, MPI_COMM_WORLD);
+        }else{ // rank 0
+
+            
+            //finalVideoFrames[world_rank] = finalVideoFrame; //The host process saves the reduced frame at pos 0 fo finalVideoFrames
+            for(int i = 1; i<world_size; i++){
+                
+                MPI_Irecv(finalVideoFrame, 1, MPI_UNSIGNED_CHAR, i, 0,MPI_COMM_WORLD ,&request); //The host process recieve the reduced frames from the others process
+                finalVideoFrames[i] = finalVideoFrame;  //The host sort the reduced frames from the non host process in FinalVideoFrames array
+                //cout <<"recibio" <<world_rank<<endl;
+                MPI_Wait(&request, &status); 
+            }
+            
+
+            int cont = 0; // Initialize cont if not already done
+            Mat newFrame = Mat::zeros(height, width, CV_8UC3);
+
+            for(int i = 1; i < n_frame; i++) { // Start from 0 if you want to process all frames
+                memcpy(newFrame.ptr(), finalVideoFrames[i], newFrame.step * newFrame.rows);
+                video.write(newFrame);
+
+                char c = (char)waitKey(1);
+                if (c == 27) {
                     break;
                 }
 
-                // Convierte el frame a un buffer que pueda ser enviado
-                vector<uchar> buffer;
-                imencode(".jpg", frame, buffer);
-                int frameSize[2] = {buffer.size(), frame.rows};
-
-                // Envía el tamaño del frame y luego los datos del frame
-                MPI_Send(&frameSize, 2, MPI_INT, i, 0, MPI_COMM_WORLD);
-                MPI_Send(buffer.data(), buffer.size(), MPI_BYTE, i, 0, MPI_COMM_WORLD);
             }
+        cout << cont <<endl;
         }
-    } else {
-        while (true) {
-            int frameSize[2];
-            MPI_Recv(&frameSize, 2, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            if (frameSize[0] == 0) {
-                // Señal de terminación
-                break;
-            }
-
-            vector<uchar> buffer(frameSize[0]);
-            MPI_Recv(buffer.data(), frameSize[0], MPI_BYTE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-            // Convierte el buffer de nuevo a un frame
-            Mat frame = imdecode(Mat(buffer), 1);
-            // Procesar el frame aquí
-        }
+        
     }
-
+    
     //End MPI
     MPI_Finalize();
     // End performance timing and calculate total time
-    _end = MPI_Wtime();
+    
     total_time = _end - init;
 
     //Time writing un results.txt
@@ -213,4 +219,5 @@ int main(int argc, char *argv[]){
     // Release video resources
     cap.release();
     video.release();
+    return 0;
 }

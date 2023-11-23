@@ -13,10 +13,9 @@ unsigned char *videoFrames, finalVideoFrames;  //Unsigned arrays for save the in
 
 
 unsigned char* reduce(unsigned char *videoFrame, int width, int height){
-
     unsigned char* finalVideoFrame = new unsigned char[width*height*3]; // Dynamically allocated array
     //unsigned char finalVideoFrame[width*height*3];    //Array to save the reduced frame
-    cout<<videoFrame[250*width*3+ 100*3+0]<<endl;
+
     for (int i = 0; i < height; i += 3) //i goes over all the rows
     {
         for (int j = 0; j < width; j += 3)  //j goes over all the columns
@@ -42,17 +41,15 @@ unsigned char* reduce(unsigned char *videoFrame, int width, int height){
             finalVideoFrame[i*width*3+ j*3+0] = blue;   //asign the new color value to the final frame
             finalVideoFrame[i*width*3+ j*3+1] = green;  //asign the new color value to the final frame
             finalVideoFrame[i*width*3+ j*3+2] = red;    //asign the new color value to the final frame
-            
         }
     }
-    //cout<<finalVideoFrame[250*width*3+ 100*3+0]<<endl;
     return  finalVideoFrame; //return the reduced frame
 }
 
 
 int main(int argc, char *argv[]){
 
-    string input = "/home/user/Desktop/MateoCodes/nacional/Paralela/paralela/Practica3/japan.mp4"; 
+    string input = "/home/user/Desktop/MateoCodes/nacional/Paralela/paralela/Practica3/test.mp4"; 
     string output = "/home/user/Desktop/MateoCodes/nacional/Paralela/paralela/Practica3/roorr.mp4"; 
     
     // Open a file to write the results
@@ -69,8 +66,8 @@ int main(int argc, char *argv[]){
     }
 
     // Retrieve properties of the input video
-    int fps = cap.get(CAP_PROP_FPS) ;
-    int fourcc = static_cast<int>(cap.get(CAP_PROP_FOURCC));  // Make sure to cast to int
+    int fps = cap.get(CAP_PROP_FPS);
+    int fourcc = cap.get(CAP_PROP_FOURCC);
     int frameCount = cap.get(CAP_PROP_FRAME_COUNT);
 
     // Initialize output video file using OpenCV's VideoWriter
@@ -130,7 +127,7 @@ int main(int argc, char *argv[]){
                 videoFrames.push_back(frame.ptr()); //put the pointer to the uchar array of the Frame's info
                 n_frame++;
             }
-        
+
             // Exit the loop if no frames are read
             if (videoFrames.empty())
             {
@@ -149,12 +146,9 @@ int main(int argc, char *argv[]){
             for(int i = 1; i<world_size; i++){
                 
                 videoFrame = videoFrames[i];    //Sending each frame to each proces from the host process
-
-                
                 MPI_Isend(videoFrame, 1, MPI_UNSIGNED_CHAR, i, 0, MPI_COMM_WORLD,&request); //Recieving the frames in each proces
                 MPI_Wait(&request, &status); 
             }
-            
             videoFrame = videoFrames[0];    //The host process takes the first frame
         }
 
@@ -162,7 +156,7 @@ int main(int argc, char *argv[]){
             
             MPI_Irecv(&band,1,MPI_INT,0,0,MPI_COMM_WORLD,&request);
             MPI_Wait(&request, &status); 
-            
+            cout<<"aa"<< band <<world_rank<<endl;
             if (band == 1){
                 break;
             }
@@ -189,21 +183,20 @@ int main(int argc, char *argv[]){
                 MPI_Wait(&request, &status); 
             }
             
-
-            int cont = 0; // Initialize cont if not already done
-            Mat newFrame = Mat::zeros(height, width, CV_8UC3);
-
-            for(int i = 1; i < n_frame; i++) { // Start from 0 if you want to process all frames
-                memcpy(newFrame.ptr(), finalVideoFrames[i], newFrame.step * newFrame.rows);
-                video.write(newFrame);
-
+            Mat newFrame;   //Mat structure that saves all the reduced frames   
+            for(int i = 1; i<n_frame;i++){
+                
+                //memcpy(newFrame.prt(),finalVideoFrames)
+                Mat reducedFrame(height, width, CV_8UC3, finalVideoFrames[i]);
+                video.write(reducedFrame);
                 char c = (char)waitKey(1);
-                if (c == 27) {
+                if (c == 27)
                     break;
-                }
-
+                        
+                cout << cont <<endl;
+                cont ++;
+                
             }
-        cout << cont <<endl;
         }
         
     }
@@ -225,6 +218,5 @@ int main(int argc, char *argv[]){
     // Release video resources
     cap.release();
     video.release();
-    cout << "Total frames" << fps <<endl;
     return 0;
 }

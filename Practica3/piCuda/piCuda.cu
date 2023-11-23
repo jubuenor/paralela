@@ -81,9 +81,9 @@ int main(int argc, char *argv[])
     threadsPerBlock = NUMTHREADS / blocksPerGrid;
     totalThreads = blocksPerGrid * threadsPerBlock;
     iterations = ITERATIONS;
-    printf("CUDA kernel launch with %d blocks of %d threads Total: %i\n", blocksPerGrid, threadsPerBlock, totalThreads);
+    printf("\nCUDA kernel launch with %d blocks of %d threads Total: %i\n", blocksPerGrid, threadsPerBlock, totalThreads);
     fprintf(fp, "%d \t", blocksPerGrid);
-    fprintf(fp, "%d \t", threadsPerBlock);
+    fprintf(fp, "%d \t", n_threads);
     calculatePi<<<blocksPerGrid, threadsPerBlock>>>(d_pitotal, iterations, totalThreads);
     err = cudaGetLastError();
     if (err != cudaSuccess)

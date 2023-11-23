@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
     int end = start + terms_per_process;
     
     // realizar calculo de pi
-    
+     
     // Imprimir la parte de la serie que cada proceso está calculando
     printf("Proceso %d calculando desde el término %d hasta %d\n", world_rank, start, end);
 
@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
     double process_time = end_time - start_time;
 
     // Sumatoria final de todos los resultados
-    MPI_Reduce(&local_sum, &pi, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&z, &pi, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
     if (world_rank == 0) {
         printf("\nInicio de calculo usando %d hilos\n", world_size);

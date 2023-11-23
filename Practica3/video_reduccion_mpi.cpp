@@ -10,8 +10,8 @@ int main(int argc, char *argv[]){
     // Inicializa el entorno MPI
     MPI_Init(&argc, &argv);
     cout<<endl;
-    string input = "/home/user/Desktop/MateoCodes/nacional/Paralela/paralela/Practica3/test.mp4"; 
-    string output = "/home/user/Desktop/MateoCodes/nacional/Paralela/paralela/Practica3/test_SALIDA.mp4"; 
+    string input = "/home/user/Desktop/MateoCodes/nacional/Paralela/paralela/Practica3/TEST2.mp4"; 
+    string output = "/home/user/Desktop/MateoCodes/nacional/Paralela/paralela/Practica3/TEST2_SALIDA.mp4"; 
 
     // Obtiene el rango (identificador) del proceso actual
     int rank;
@@ -24,6 +24,7 @@ int main(int argc, char *argv[]){
     // Nombre del video de entrada y salida
     string inputVideo = input;
     string outputVideo = output;
+
     if(rank == 0){
         VideoCapture cap(inputVideo);
 
@@ -62,6 +63,8 @@ int main(int argc, char *argv[]){
 
             // Escribe el fotograma redimensionado en el video de salida
             writer.write(resizedFrame);
+
+            
         }
 
         // Libera los recursos
@@ -71,8 +74,6 @@ int main(int argc, char *argv[]){
         // Si el proceso no es el proceso maestro, imprime "hola"
         cout << "Proceso " << rank << ": hola" << std::endl;
     }
-
-
 
     cout << "Video procesado con éxito" << endl;
       // Finaliza el entorno MPI

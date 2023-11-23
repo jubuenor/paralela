@@ -7,7 +7,7 @@ OPENCV = `pkg-config --cflags`
 
 all: piCuda
 
-videoReductor: piCuda.cu
+piCuda: piCuda.cu
 	$(LINK) -o $(OUT_FILE) $(FLAGS) $(OPENCV) $^
 
 clean: 

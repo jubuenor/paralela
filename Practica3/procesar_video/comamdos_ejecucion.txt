@@ -1,0 +1,1 @@
+ mpic++ -o compresion_video_mpi compresion_video_mpi.cpp  `pkg-config --cflags --libs opencv4` && mpiexec -n 6 ./compresion_video_mpi ./videocorto.mp4 ./salida_video_corto.mp4

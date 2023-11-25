@@ -1,2 +1,0 @@
-Hilos: 16 
-- Tiempo total: 13.150074s 

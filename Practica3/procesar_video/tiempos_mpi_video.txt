@@ -1,0 +1,6 @@
+Tiempo total de ejecución con 1 procesos: 21.239392 segundos
+Tiempo total de ejecución con 2 procesos: 21.613164 segundos
+Tiempo total de ejecución con 3 procesos: 20.510428 segundos
+Tiempo total de ejecución con 4 procesos: 20.641213 segundos
+Tiempo total de ejecución con 5 procesos: 21.100477 segundos
+Tiempo total de ejecución con 6 procesos: 21.381260 segundos

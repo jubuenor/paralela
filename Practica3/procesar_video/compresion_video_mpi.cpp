@@ -49,7 +49,10 @@ int main(int argc, char **argv) {
     int totalFrames;
     string inputPath = argv[1];;
     string outputPath = argv[2];;
-     
+
+    // Inicia el cronómetro para obtener el tiempo 
+    double start_time = MPI_Wtime();
+
     VideoCapture cap;
 
     VideoWriter writer;
@@ -133,5 +136,25 @@ int main(int argc, char **argv) {
     cap.release();
     if (rank == 0) writer.release();
     MPI_Finalize();
+
+
+    // Detiene el cronómetro
+    double end_time = MPI_Wtime();
+
+    // Tiempo de ejecución por proceso
+    double process_time = end_time - start_time;
+        if (rank == 0) {
+        printf("\nInicio de calculo usando %d hilos\n", numProcesses);
+        
+
+        // Abre un archivo para escribir los tiempos en modo append
+        FILE *file = fopen("tiempos_mpi_video.txt", "a");
+        if (file != NULL) {
+            fprintf(file, "Tiempo total de ejecución con %d procesos: %f segundos\n", numProcesses, end_time - start_time);
+            fclose(file);
+        } else {
+            printf("Error al abrir el archivo para escribir los tiempos\n");
+        }
+    }
     return 0;
 }
